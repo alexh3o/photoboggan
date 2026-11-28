@@ -1,4 +1,4 @@
-//! Tests de la recherche de lieux (place_search.rs) : encodage de la requête et lecture de la réponse. Aucun accès au réseau.
+//! Tests de la recherche de lieux (`place_search.rs`) : encodage de la requête et lecture de la réponse. Aucun accès au réseau.
 
 use super::*;
 

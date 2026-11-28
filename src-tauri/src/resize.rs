@@ -69,7 +69,7 @@ pub struct ResizeOptions {
     pub png_compression: PngCompression,
     pub keep_metadata: bool,
     /// Vrai : les marquages (note, couleur, fanions) de la source ne sont pas recopiés avec les métadonnées. L'interface ne l'envoie que si
-    /// le chemin d'écriture ExifTool est actif et que l'utilisateur n'a pas coché « conserver les marquages » ; absent = marquages recopiés.
+    /// le chemin d'écriture `ExifTool` est actif et que l'utilisateur n'a pas coché « conserver les marquages » ; absent = marquages recopiés.
     #[serde(default)]
     pub clear_marks: bool,
     /// Dossier de destination ; absent ou vide = dossier de la photo source.
@@ -131,14 +131,14 @@ pub fn resize_photo(source: &Path, options: &ResizeOptions) -> Result<ResizeOutc
     let temp = directory.join(format!(".photoboggan-resize-{}-{}.tmp", std::process::id(), TEMP_COUNTER.fetch_add(1, Ordering::Relaxed)));
     // Flushed to the disk before the rename: with "Replace", the rename takes the place of an existing file, which must never become an
     // empty or partial file after a power cut.
-    if let Err(error) = fs::write(&temp, &bytes).and_then(|_| crate::flush_to_disk(&temp)) {
+    if let Err(error) = fs::write(&temp, &bytes).and_then(|()| crate::flush_to_disk(&temp)) {
         let _ = fs::remove_file(&temp); // écriture partielle (disque plein…) : rien ne reste dans le dossier de l'utilisateur
         return Err(format!("Écriture impossible : {error}"));
     }
 
     // Le nom est résolu une seconde fois sous verrou : un autre fichier du lot a pu créer la même cible entre-temps.
     // Le verrou ne protège aucune donnée : un verrou « empoisonné » par une panique ailleurs reste utilisable.
-    let _guard = COMMIT_LOCK.lock().unwrap_or_else(|poisoned| poisoned.into_inner());
+    let _guard = COMMIT_LOCK.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
     let final_path = match resolve_conflict(&target, options.conflict) {
         Resolution::Write(path) => path,
         Resolution::Ask => { let _ = fs::remove_file(&temp); return Ok(ResizeOutcome::Conflict { output: path_text(&target) }); }
@@ -217,7 +217,7 @@ enum Resolution {
     Skip,
 }
 
-/// « photo_s.jpg » existe : « photo_s_1.jpg », « photo_s_2.jpg »… (premier nom libre).
+/// « `photo_s.jpg` » existe : « `photo_s_1.jpg` », « `photo_s_2.jpg` »… (premier nom libre).
 fn incremented_name(target: &Path) -> PathBuf {
     let directory = target.parent().map(Path::to_path_buf).unwrap_or_default();
     let stem = target.file_stem().map(|value| value.to_string_lossy().into_owned()).unwrap_or_default();
@@ -251,10 +251,10 @@ fn is_raw_extension(extension: &str) -> bool {
 /// Dimensions finales pour des dimensions sources données (jamais plus grandes que la source).
 fn target_size(options: &ResizeOptions, width: usize, height: usize) -> (usize, usize) {
     let scale = match options.mode {
-        ResizeMode::Percent => options.value.min(100) as f64 / 100.0,
+        ResizeMode::Percent => f64::from(options.value.min(100)) / 100.0,
         ResizeMode::MaxSide => {
             let longest = width.max(height) as f64;
-            (options.value as f64 / longest).min(1.0)
+            (f64::from(options.value) / longest).min(1.0)
         }
     };
     if scale >= 1.0 { return (width, height); }
@@ -340,14 +340,14 @@ fn resize_raster(raster: Raster, width: usize, height: usize) -> Raster {
     };
     // Avec transparence : moyenne sur des couleurs prémultipliées, sinon les pixels transparents (souvent noirs) assombrissent les bords.
     for (pixel, &a) in rgb.as_chunks_mut::<3>().0.iter_mut().zip(&alpha) {
-        for channel in pixel { *channel = ((*channel as u32 * a as u32 + 127) / 255) as u8; }
+        for channel in pixel { *channel = ((u32::from(*channel) * u32::from(a) + 127) / 255) as u8; }
     }
     let mut rgb = thumbnails::resize_area(&rgb, source_width, source_height, width, height);
     let alpha_as_rgb: Vec<u8> = alpha.iter().flat_map(|&a| [a, a, a]).collect();
     let alpha: Vec<u8> = thumbnails::resize_area(&alpha_as_rgb, source_width, source_height, width, height).as_chunks::<3>().0.iter().map(|pixel| pixel[0]).collect();
     for (pixel, &a) in rgb.as_chunks_mut::<3>().0.iter_mut().zip(&alpha) {
         if a == 0 || a == 255 { continue; }
-        for channel in pixel { *channel = ((*channel as u32 * 255 + a as u32 / 2) / a as u32).min(255) as u8; }
+        for channel in pixel { *channel = ((u32::from(*channel) * 255 + u32::from(a) / 2) / u32::from(a)).min(255) as u8; }
     }
     Raster { rgb, alpha: Some(alpha), width, height }
 }
@@ -371,7 +371,7 @@ fn encode_jpeg(raster: &Raster, options: &ResizeOptions, metadata: &SourceMetada
     let rgb: &[u8] = match &raster.alpha {
         Some(alpha) => {
             flattened = raster.rgb.as_chunks::<3>().0.iter().zip(alpha).flat_map(|(pixel, &a)| {
-                pixel.iter().map(move |&c| ((c as u32 * a as u32 + 255 * (255 - a as u32) + 127) / 255) as u8)
+                pixel.iter().map(move |&c| ((u32::from(c) * u32::from(a) + 255 * (255 - u32::from(a)) + 127) / 255) as u8)
             }).collect::<Vec<u8>>();
             &flattened
         }
@@ -482,7 +482,7 @@ fn write_u32(bytes: &mut [u8], at: usize, value: u32, little: bool) {
 }
 
 /// Adapte l'EXIF copié à l'image redimensionnée, en place (la structure et les autres tags ne bougent pas) :
-/// Orientation remise à 1 si les pixels ont été pivotés, PixelXDimension / PixelYDimension mis à jour,
+/// Orientation remise à 1 si les pixels ont été pivotés, `PixelXDimension` / `PixelYDimension` mis à jour,
 /// et lien vers la miniature intégrée (IFD1) coupé, car elle ne correspondrait plus à l'image.
 fn patch_exif(segment: &mut [u8], width: u32, height: u32, original_orientation: u32) {
     let tiff = EXIF_HEADER.len();
@@ -508,14 +508,14 @@ fn patch_exif(segment: &mut [u8], width: u32, height: u32, original_orientation:
         let entry = exif_ifd + 2 + index * 12;
         let value = match read_u16(segment, entry, little) { Some(0xa002) => width, Some(0xa003) => height, _ => continue };
         match read_u16(segment, entry + 2, little) {
-            Some(3) => write_u16(segment, entry + 8, value.min(u16::MAX as u32) as u16, little),
+            Some(3) => write_u16(segment, entry + 8, value.min(u32::from(u16::MAX)) as u16, little),
             Some(4) => write_u32(segment, entry + 8, value, little),
             _ => {}
         }
     }
 }
 
-/// Note Windows de l'EXIF (Rating 0x4746, RatingPercent 0x4749, IFD0) remise à 0 en place : la structure du segment ne change pas.
+/// Note Windows de l'EXIF (Rating 0x4746, `RatingPercent` 0x4749, IFD0) remise à 0 en place : la structure du segment ne change pas.
 fn clear_exif_rating(segment: &mut [u8]) {
     let tiff = EXIF_HEADER.len();
     let little = match segment.get(tiff..tiff + 2) { Some(b"II") => true, Some(b"MM") => false, _ => return };

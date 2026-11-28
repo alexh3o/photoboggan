@@ -2,7 +2,7 @@
 //!
 //! Fournisseur : Nominatim (OpenStreetMap), sans clé. Sa politique d'usage demande un User-Agent propre à l'application, au plus une requête par
 //! seconde et aucune saisie automatique : la recherche n'est lancée qu'à la validation. Tout ce qui dépend du fournisseur (adresse, format de la
-//! réponse) est réuni ici : en changer, c'est modifier `SEARCH_URL` et `parse_places`. La requête part du backend (jamais de la WebView) et est
+//! réponse) est réuni ici : en changer, c'est modifier `SEARCH_URL` et `parse_places`. La requête part du backend (jamais de la `WebView`) et est
 //! refusée en mode hors ligne, comme les autres accès au réseau.
 
 use serde::Serialize;
@@ -43,7 +43,7 @@ fn parse_places(body: &[u8]) -> Result<Vec<Place>, String> {
         .collect())
 }
 
-/// Lieux correspondant au texte. Erreur « internet_disabled » en mode hors ligne.
+/// Lieux correspondant au texte. Erreur « `internet_disabled` » en mode hors ligne.
 #[tauri::command]
 pub async fn search_places(query: String) -> Result<Vec<Place>, String> {
     let query = query.trim().to_string();

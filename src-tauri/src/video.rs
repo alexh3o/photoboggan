@@ -5,7 +5,7 @@
 //! et l'aperçu, mise en cache en JPEG comme celle des photos (voir thumbnails.rs).
 //!
 //! Sources de l'image, dans cet ordre :
-//! - Windows : la vignette du Shell (IShellItemImageFactory), la même que celle de l'Explorateur. Elle utilise les codecs déjà
+//! - Windows : la vignette du Shell (`IShellItemImageFactory`), la même que celle de l'Explorateur. Elle utilise les codecs déjà
 //!   installés sur la machine : rien à distribuer avec l'application.
 //! - Repli, toutes plateformes : `ffmpeg` s'il est installé et accessible dans le PATH (jamais distribué avec l'application).
 //!
@@ -21,8 +21,7 @@ pub const VIDEO_EXTENSIONS: &[&str] = &["mp4", "mov", "avi", "mkv"];
 pub fn is_video_path(path: &Path) -> bool {
     path.extension()
         .and_then(|extension| extension.to_str())
-        .map(|extension| VIDEO_EXTENSIONS.contains(&extension.to_ascii_lowercase().as_str()))
-        .unwrap_or(false)
+        .is_some_and(|extension| VIDEO_EXTENSIONS.contains(&extension.to_ascii_lowercase().as_str()))
 }
 
 /// Délai maximal de la miniature du Shell : un fournisseur de miniatures qui bloque (codec défaillant, partage injoignable) ne doit pas immobiliser
@@ -58,7 +57,7 @@ fn shell_thumbnail(path: &Path, max_side: usize) -> Result<(Vec<u8>, usize, usiz
     unsafe fn bitmap_to_rgb(bitmap: HBITMAP) -> Result<(Vec<u8>, usize, usize), String> {
         let object = HGDIOBJ(bitmap.0);
         let mut info = BITMAP::default();
-        let read = GetObjectW(object, std::mem::size_of::<BITMAP>() as i32, Some(&mut info as *mut BITMAP as *mut c_void));
+        let read = GetObjectW(object, std::mem::size_of::<BITMAP>() as i32, Some((&raw mut info).cast::<c_void>()));
         if read == 0 || info.bmWidth <= 0 || info.bmHeight == 0 {
             let _ = DeleteObject(object);
             return Err("Bitmap de miniature illisible".into());
@@ -79,7 +78,7 @@ fn shell_thumbnail(path: &Path, max_side: usize) -> Result<(Vec<u8>, usize, usiz
         };
         let mut bgra = vec![0u8; width as usize * height as usize * 4];
         let device = GetDC(None);
-        let lines = GetDIBits(device, bitmap, 0, height as u32, Some(bgra.as_mut_ptr() as *mut c_void), &mut header, DIB_RGB_COLORS);
+        let lines = GetDIBits(device, bitmap, 0, height as u32, Some(bgra.as_mut_ptr().cast::<c_void>()), &raw mut header, DIB_RGB_COLORS);
         ReleaseDC(None, device);
         let _ = DeleteObject(object);
         if lines == 0 {

@@ -1,4 +1,4 @@
-//! Tests of face_detect.rs: orientation conversions of face rectangles, and the shared defaults file (faceSettings, keys the frontend reads).
+//! Tests of `face_detect.rs`: orientation conversions of face rectangles, and the shared defaults file (faceSettings, keys the frontend reads).
 
 use super::*;
 

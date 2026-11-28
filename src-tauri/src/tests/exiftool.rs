@@ -1,7 +1,7 @@
-//! Tests du chemin d'écriture ExifTool (exiftool.rs).
-//! Rapides : verrous par chemin, échappement des valeurs, choix de la cible. Aucun processus ExifTool n'est lancé.
-//! Intégration (`cargo test -- --ignored`) : écritures réelles avec l'ExifTool embarqué (`npm run fetch-exiftool`) ou celui du PATH ;
-//! sans ExifTool disponible, ces tests s'arrêtent en le disant (ils ne passent pas pour autant en échec).
+//! Tests du chemin d'écriture `ExifTool` (exiftool.rs).
+//! Rapides : verrous par chemin, échappement des valeurs, choix de la cible. Aucun processus `ExifTool` n'est lancé.
+//! Intégration (`cargo test -- --ignored`) : écritures réelles avec l'`ExifTool` embarqué (`npm run fetch-exiftool`) ou celui du PATH ;
+//! sans `ExifTool` disponible, ces tests s'arrêtent en le disant (ils ne passent pas pour autant en échec).
 
 use super::*;
 use crate::exif::{read_exif, MetadataUpdate, XmpEdit};
@@ -427,11 +427,11 @@ fn region_args_preserves_non_face_regions_and_clears_microsoft_when_no_faces() {
 
 // --- Intégration (ExifTool réel) ---
 
-/// Prépare ExifTool : version embarquée du dépôt si elle est présente (Windows), sinon celui du PATH. Faux (avec un message) s'il est introuvable.
+/// Prépare `ExifTool` : version embarquée du dépôt si elle est présente (Windows), sinon celui du PATH. Faux (avec un message) s'il est introuvable.
 fn exiftool_available() -> bool {
     let vendored = Path::new(env!("CARGO_MANIFEST_DIR")).join("vendor").join("exiftool").join("exiftool.exe");
     if cfg!(windows) && vendored.is_file() {
-        SETTINGS.write().unwrap_or_else(|poisoned| poisoned.into_inner()).custom_path = Some(vendored);
+        SETTINGS.write().unwrap_or_else(std::sync::PoisonError::into_inner).custom_path = Some(vendored);
         *lock(&LAUNCHER) = None;
     }
     match launcher() {
@@ -441,7 +441,7 @@ fn exiftool_available() -> bool {
 }
 
 fn leftovers(dir: &Path) -> Vec<String> {
-    std::fs::read_dir(dir).unwrap().filter_map(|e| e.ok()).map(|e| e.file_name().to_string_lossy().to_string())
+    std::fs::read_dir(dir).unwrap().filter_map(std::result::Result::ok).map(|e| e.file_name().to_string_lossy().to_string())
         .filter(|name| {
             name.ends_with("_exiftool_tmp")
                 || name.ends_with(".photoboggan-tmp")
@@ -625,7 +625,7 @@ fn gps_is_erased_from_exif_and_xmp_then_restored() {
     assert!(leftovers(dir.path()).is_empty(), "{:?}", leftovers(dir.path()));
 }
 
-/// Same as exif::tests::marking_check_cost with the ExifTool writer.
+/// Same as `exif::tests::marking_check_cost` with the `ExifTool` writer.
 #[test]
 #[ignore = "benchmark: needs a photo (PHOTOBOGGAN_BENCH_PHOTO) and ExifTool"]
 fn marking_check_cost_with_exiftool() {

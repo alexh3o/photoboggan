@@ -1,10 +1,10 @@
-//! Reconnaissance des visages (lot 3) : alignement, empreinte SFace et attribution à une personne (spec dev_tools/Evolutions/
+//! Reconnaissance des visages (lot 3) : alignement, empreinte `SFace` et attribution à une personne (spec `dev_tools/Evolutions`/
 //! feat face recognition v2.md, §3 étapes 5 à 7 et §5.1).
 //!
-//! - Alignement : les 5 points de repère de YuNet sont ramenés sur le gabarit 112 × 112 de SFace par une similarité (rotation, échelle,
+//! - Alignement : les 5 points de repère de `YuNet` sont ramenés sur le gabarit 112 × 112 de `SFace` par une similarité (rotation, échelle,
 //!   translation) calculée aux moindres carrés, puis l'image est rééchantillonnée (bilinéaire).
-//! - Empreinte : 128 valeurs, normalisées ; la ressemblance de deux visages est leur produit scalaire (cosinus). Entrée de SFace : RGB, 0 à 255
-//!   (prétraitement d'OpenCV, vérifié sur le prototype : un peu plus discriminant que BGR).
+//! - Empreinte : 128 valeurs, normalisées ; la ressemblance de deux visages est leur produit scalaire (cosinus). Entrée de `SFace` : RGB, 0 à 255
+//!   (prétraitement d'`OpenCV`, vérifié sur le prototype : un peu plus discriminant que BGR).
 //! - Attribution : pour chaque personne, la plus forte ressemblance avec l'un de ses visages confirmés (s1 pour la meilleure personne, s2 pour la
 //!   suivante) ; « auto » si s1 ≥ seuil auto et s1 − s2 ≥ marge, « suggéré » si s1 ≥ seuil de suggestion, sinon « inconnu ». Seuls les visages
 //!   confirmés servent de référence. Les personnes masquées ne reçoivent rien.
@@ -28,12 +28,12 @@ const MIN_FACES_FOR_CENTROIDS: usize = 10;
 const MAX_CENTROIDS: usize = 5;
 const KMEANS_ITERATIONS: usize = 12;
 
-/// Points de repère approchés d'une zone sans repères (zone importée que YuNet n'a pas retrouvée) : positions du gabarit rapportées au cadre.
+/// Points de repère approchés d'une zone sans repères (zone importée que `YuNet` n'a pas retrouvée) : positions du gabarit rapportées au cadre.
 pub fn landmarks_from_box(rect: [f64; 4]) -> [f32; 10] {
     let mut landmarks = [0f32; 10];
     for (point, [x, y]) in TEMPLATE.iter().enumerate() {
-        landmarks[point * 2] = (rect[0] + rect[2] * (*x as f64 / FACE_SIDE as f64)) as f32;
-        landmarks[point * 2 + 1] = (rect[1] + rect[3] * (*y as f64 / FACE_SIDE as f64)) as f32;
+        landmarks[point * 2] = (rect[0] + rect[2] * (f64::from(*x) / FACE_SIDE as f64)) as f32;
+        landmarks[point * 2 + 1] = (rect[1] + rect[3] * (f64::from(*y) / FACE_SIDE as f64)) as f32;
     }
     landmarks
 }
@@ -74,7 +74,7 @@ pub fn align(rgb: &[u8], width: usize, height: usize, landmarks: &[f32; 10]) -> 
             let (x0, y0) = (px.floor() as usize, py.floor() as usize);
             let (fx, fy) = (px.fract(), py.fract());
             for channel in 0..3 {
-                let sample = |x: usize, y: usize| rgb[(y * width + x) * 3 + channel] as f32;
+                let sample = |x: usize, y: usize| f32::from(rgb[(y * width + x) * 3 + channel]);
                 let top = sample(x0, y0) * (1.0 - fx) + sample(x0 + 1, y0) * fx;
                 let bottom = sample(x0, y0 + 1) * (1.0 - fx) + sample(x0 + 1, y0 + 1) * fx;
                 output[(v * FACE_SIDE + u) * 3 + channel] = (top * (1.0 - fy) + bottom * fy).round() as u8;
@@ -85,17 +85,17 @@ pub fn align(rgb: &[u8], width: usize, height: usize, landmarks: &[f32; 10]) -> 
     Some(output)
 }
 
-/// Empreinte SFace (normalisée) d'un visage aligné 112 × 112 RGB.
+/// Empreinte `SFace` (normalisée) d'un visage aligné 112 × 112 RGB.
 pub fn embed(session: &Mutex<Session>, face: &[u8]) -> Result<Vec<f32>, String> {
     let plane = FACE_SIDE * FACE_SIDE;
     let mut input = vec![0f32; 3 * plane];
     for pixel in 0..plane {
         for channel in 0..3 {
-            input[channel * plane + pixel] = face[pixel * 3 + channel] as f32;
+            input[channel * plane + pixel] = f32::from(face[pixel * 3 + channel]);
         }
     }
     let tensor = Tensor::from_array(([1usize, 3, FACE_SIDE, FACE_SIDE], input)).map_err(|error| error.to_string())?;
-    let mut session = session.lock().unwrap_or_else(|poisoned| poisoned.into_inner());
+    let mut session = session.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
     let outputs = session.run(ort::inputs!["data" => tensor]).map_err(|error| format!("Reconnaissance impossible : {error}"))?;
     let (_, values) = outputs["fc1"].try_extract_tensor::<f32>().map_err(|error| error.to_string())?;
     let norm = values.iter().map(|value| value * value).sum::<f32>().sqrt();
@@ -115,8 +115,8 @@ pub fn similarity(a: &[f32], b: &[f32]) -> f32 {
     a.iter().zip(b).map(|(x, y)| x * y).sum()
 }
 
-/// Références d'une personne : ses visages confirmés, ou au-delà de MIN_FACES_FOR_CENTROIDS des centroïdes (un tous les 10 visages, au plus
-/// MAX_CENTROIDS) : la personne est représentée par ses « apparences » (âges, lunettes…) sans comparer chaque visage à des centaines d'autres.
+/// Références d'une personne : ses visages confirmés, ou au-delà de `MIN_FACES_FOR_CENTROIDS` des centroïdes (un tous les 10 visages, au plus
+/// `MAX_CENTROIDS`) : la personne est représentée par ses « apparences » (âges, lunettes…) sans comparer chaque visage à des centaines d'autres.
 fn person_references(embeddings: Vec<Vec<f32>>) -> Vec<Vec<f32>> {
     if embeddings.len() < MIN_FACES_FOR_CENTROIDS { return embeddings; }
     let count = (embeddings.len() / MIN_FACES_FOR_CENTROIDS + 1).min(MAX_CENTROIDS);
@@ -130,7 +130,7 @@ fn normalized(mut vector: Vec<f32>) -> Vec<f32> {
 }
 
 /// k-means sur la sphère (ressemblance cosinus), déterministe : premier centre = visage le plus proche de la moyenne, suivants = visage le plus
-/// éloigné des centres déjà choisis ; puis affectations et moyennes renormalisées, KMEANS_ITERATIONS fois (un groupe vide garde son centre).
+/// éloigné des centres déjà choisis ; puis affectations et moyennes renormalisées, `KMEANS_ITERATIONS` fois (un groupe vide garde son centre).
 pub(crate) fn kmeans(points: &[Vec<f32>], count: usize) -> Vec<Vec<f32>> {
     let count = count.clamp(1, points.len().max(1));
     if points.is_empty() { return Vec::new(); }
@@ -242,18 +242,15 @@ pub fn attribute_faces(conn: &Connection, photo_ids: Option<&[i64]>, thresholds:
         let map = |row: &rusqlite::Row| -> rusqlite::Result<(i64, Vec<u8>, String, Option<i64>, Option<i64>, Option<i64>)> {
             Ok((row.get(0)?, row.get(1)?, row.get(2)?, row.get(3)?, row.get(4)?, row.get(5)?))
         };
-        let rows: Vec<_> = match photo_ids {
-            Some(ids) => {
-                let ids_json = serde_json::to_string(ids).map_err(|error| error.to_string())?;
-                let mut statement = conn.prepare(&format!("{base} AND photo_id IN (SELECT value FROM json_each(?2))")).map_err(|error| error.to_string())?;
-                let rows = statement.query_map(params![MODEL_ID, ids_json], map).map_err(|error| error.to_string())?;
-                crate::keywords::collect_rows(rows)?
-            }
-            None => {
-                let mut statement = conn.prepare(base).map_err(|error| error.to_string())?;
-                let rows = statement.query_map(params![MODEL_ID], map).map_err(|error| error.to_string())?;
-                crate::keywords::collect_rows(rows)?
-            }
+        let rows: Vec<_> = if let Some(ids) = photo_ids {
+            let ids_json = serde_json::to_string(ids).map_err(|error| error.to_string())?;
+            let mut statement = conn.prepare(&format!("{base} AND photo_id IN (SELECT value FROM json_each(?2))")).map_err(|error| error.to_string())?;
+            let rows = statement.query_map(params![MODEL_ID, ids_json], map).map_err(|error| error.to_string())?;
+            crate::keywords::collect_rows(rows)?
+        } else {
+            let mut statement = conn.prepare(base).map_err(|error| error.to_string())?;
+            let rows = statement.query_map(params![MODEL_ID], map).map_err(|error| error.to_string())?;
+            crate::keywords::collect_rows(rows)?
         };
         rows.into_iter()
             .filter_map(|(id, blob, state, person_id, suggested, rejected)| {
@@ -275,8 +272,8 @@ pub fn attribute_faces(conn: &Connection, photo_ids: Option<&[i64]>, thresholds:
             }
             let mut ranked: Vec<(i64, f32)> = best.into_iter().collect();
             ranked.sort_by(|a, b| b.1.total_cmp(&a.1));
-            let (first, s1) = ranked.first().copied().map(|(person, score)| (Some(person), score as f64)).unwrap_or((None, 0.0));
-            let s2 = ranked.get(1).map(|(_, score)| *score as f64).unwrap_or(0.0);
+            let (first, s1) = ranked.first().copied().map_or((None, 0.0), |(person, score)| (Some(person), f64::from(score)));
+            let s2 = ranked.get(1).map_or(0.0, |(_, score)| f64::from(*score));
             let margin = s1 - s2;
             if first.is_some() && s1 >= thresholds.auto && margin >= thresholds.margin {
                 (candidate.id, "auto", first, None, s1, margin)

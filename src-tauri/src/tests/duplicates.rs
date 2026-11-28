@@ -34,7 +34,7 @@ fn png_with_chunk(png: &[u8], kind: &[u8; 4], data: &[u8]) -> Vec<u8> {
     crc_input.extend_from_slice(data);
     let mut crc: u32 = 0xFFFF_FFFF;
     for byte in &crc_input {
-        crc ^= *byte as u32;
+        crc ^= u32::from(*byte);
         for _ in 0..8 {
             crc = if crc & 1 != 0 { (crc >> 1) ^ 0xEDB8_8320 } else { crc >> 1 };
         }

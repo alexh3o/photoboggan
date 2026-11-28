@@ -92,7 +92,7 @@ pub fn init_schema(conn: &Connection) -> rusqlite::Result<()> {
 /// Stores one up-to-date perceptual hash and clears any prior failure for this photo.
 pub(crate) fn save_phash_row(conn: &Connection, photo_id: i64, size: u64, modified: i64, fingerprint: &Fingerprint) -> rusqlite::Result<()> {
     conn.prepare_cached("INSERT OR REPLACE INTO photo_phash (photo_id, size, modified, algo, flat, hashes) VALUES (?1, ?2, ?3, ?4, ?5, ?6)")?
-        .execute(params![photo_id, size as i64, modified, ALGO_VERSION, fingerprint.flat as i64, encode(&fingerprint.hashes)])?;
+        .execute(params![photo_id, size as i64, modified, ALGO_VERSION, i64::from(fingerprint.flat), encode(&fingerprint.hashes)])?;
     conn.prepare_cached("DELETE FROM photo_phash_failures WHERE photo_id = ?1")?
         .execute(params![photo_id])?;
     Ok(())
@@ -134,8 +134,8 @@ fn decode(blob: &[u8]) -> Option<[u64; 8]> {
         return None;
     }
     let mut hashes = [0u64; 8];
-    for (hash, bytes) in hashes.iter_mut().zip(blob.chunks_exact(8)) {
-        *hash = u64::from_le_bytes(bytes.try_into().ok()?);
+    for (hash, bytes) in hashes.iter_mut().zip(blob.as_chunks::<8>().0) {
+        *hash = u64::from_le_bytes(*bytes);
     }
     Some(hashes)
 }
@@ -195,7 +195,7 @@ fn parse_time(date_taken: &str) -> Option<i64> {
         .map(|time| time.and_utc().timestamp())
 }
 
-/// Milliseconds of the shooting time (EXIF SubSecTimeOriginal), 0 when the file has none: the catalog only keeps whole seconds.
+/// Milliseconds of the shooting time (EXIF `SubSecTimeOriginal`), 0 when the file has none: the catalog only keeps whole seconds.
 fn read_subsec_ms(path: &str) -> i64 {
     let Ok(file) = fs::File::open(path) else { return 0 };
     let Ok(exif) = exif::Reader::new().read_from_container(&mut BufReader::new(file)) else { return 0 };
@@ -215,10 +215,10 @@ fn is_burst(a: &Item, b: &Item, burst_ms: i64, subsec: &Mutex<HashMap<i64, i64>>
         return false; // even the largest possible sub-second parts cannot bring them within the burst window
     }
     let milliseconds = |item: &Item, time: i64| -> i64 {
-        let cached = subsec.lock().unwrap_or_else(|poisoned| poisoned.into_inner()).get(&item.id).copied();
+        let cached = subsec.lock().unwrap_or_else(std::sync::PoisonError::into_inner).get(&item.id).copied();
         let part = cached.unwrap_or_else(|| {
             let value = read_subsec_ms(&item.path);
-            subsec.lock().unwrap_or_else(|poisoned| poisoned.into_inner()).insert(item.id, value);
+            subsec.lock().unwrap_or_else(std::sync::PoisonError::into_inner).insert(item.id, value);
             value
         });
         time * 1000 + part
@@ -251,7 +251,7 @@ fn find(parents: &mut [usize], mut index: usize) -> usize {
 /// Finds groups of similar photos (tests and simple callers).
 #[cfg_attr(not(test), allow(dead_code))]
 pub fn run(pool: &DbPool, thumbnails_dir: &Path, request: &Request, cancel: &AtomicBool, progress: &(dyn Fn(f64) + Sync)) -> Result<Report, String> {
-    run_with_options(pool, thumbnails_dir, None, request, cancel, &|rich| progress(rich.percent as f64 / 100.0))
+    run_with_options(pool, thumbnails_dir, None, request, cancel, &|rich| progress(f64::from(rich.percent) / 100.0))
 }
 
 /// Finds groups of similar photos with chunked commits, low-priority workers, foreground pauses, rich progress, and failure logging.
@@ -452,7 +452,7 @@ pub fn run_with_options(
                             if closest(a, b, request.rotations) > request.max_distance {
                                 continue;
                             }
-                            if request.ignore_bursts && is_burst(a, b, request.burst_ms as i64, &subsec) {
+                            if request.ignore_bursts && is_burst(a, b, i64::from(request.burst_ms), &subsec) {
                                 continue;
                             }
                             found.push((i, j));

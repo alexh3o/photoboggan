@@ -1,4 +1,4 @@
-//! Tests des arguments ExifTool de l'auteur et des droits (exiftool.rs) : seuls les arguments sont vérifiés ici, ExifTool n'est pas lancé.
+//! Tests des arguments `ExifTool` de l'auteur et des droits (exiftool.rs) : seuls les arguments sont vérifiés ici, `ExifTool` n'est pas lancé.
 //! Un JPEG reçoit aussi l'IPTC et l'EXIF ; les autres formats (sidecar XMP) ne reçoivent que le XMP.
 
 use super::*;

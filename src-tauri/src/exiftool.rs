@@ -1,11 +1,11 @@
-//! Metadata writing via ExifTool (https://exiftool.org).
+//! Metadata writing via `ExifTool` (<https://exiftool.org>).
 //!
 //! Executable, in order: user-chosen path in Settings, bundled version (`exiftool` folder in app resources,
 //! see scripts/fetch-exiftool.mjs), then `exiftool` from PATH. Windows: official distribution with embedded Perl
 //! (`exiftool.exe`); Linux / macOS: pure Perl distribution, launched by the system `perl`.
 //!
-//! Persistent processes (`-stay_open True -@ -`): started on demand (up to MAX_PROCESSES, matching parallel writes
-//! in keywords.rs), stopped after IDLE_TIMEOUT of inactivity and on app shutdown. ExifTool writes to a temporary file
+//! Persistent processes (`-stay_open True -@ -`): started on demand (up to `MAX_PROCESSES`, matching parallel writes
+//! in keywords.rs), stopped after `IDLE_TIMEOUT` of inactivity and on app shutdown. `ExifTool` writes to a temporary file
 //! then replaces the original (`-overwrite_original`): never writes in place. Verification read-back is done by the caller.
 
 use std::collections::hash_map::DefaultHasher;
@@ -19,7 +19,7 @@ use std::sync::mpsc::{self, Receiver, RecvTimeoutError};
 use std::sync::{Condvar, Mutex, OnceLock, RwLock};
 use std::time::{Duration, Instant};
 
-/// Nombre maximal de processus ExifTool simultanés.
+/// Nombre maximal de processus `ExifTool` simultanés.
 const MAX_PROCESSES: usize = 3;
 /// Un processus inutilisé depuis ce délai est arrêté.
 const IDLE_TIMEOUT: Duration = Duration::from_secs(45);
@@ -27,7 +27,7 @@ const IDLE_TIMEOUT: Duration = Duration::from_secs(45);
 const COMMAND_TIMEOUT: Duration = Duration::from_secs(120);
 /// Délai maximal de `exiftool -ver` lors de la détection.
 const PROBE_TIMEOUT: Duration = Duration::from_secs(20);
-/// Minimum ExifTool version required (mature HEIC, XMP, and UTF-8 support; bundled is 13.59).
+/// Minimum `ExifTool` version required (mature HEIC, XMP, and UTF-8 support; bundled is 13.59).
 const MIN_VERSION: (u32, u32) = (12, 0);
 const MIN_VERSION_STR: &str = "12.00";
 
@@ -52,13 +52,13 @@ pub fn init(resource_dir: Option<PathBuf>) {
     }
 }
 
-/// Sets the user-chosen ExifTool executable path (empty/None = auto-detect).
+/// Sets the user-chosen `ExifTool` executable path (empty/None = auto-detect).
 /// Changing the path stops running processes and triggers detection on the next write.
 #[tauri::command]
 pub fn set_metadata_writer(custom_path: Option<String>) -> Result<(), String> {
     let custom_path = custom_path.map(|path| path.trim().to_string()).filter(|path| !path.is_empty()).map(PathBuf::from);
     {
-        let mut settings = SETTINGS.write().unwrap_or_else(|poisoned| poisoned.into_inner());
+        let mut settings = SETTINGS.write().unwrap_or_else(std::sync::PoisonError::into_inner);
         if settings.custom_path == custom_path { return Ok(()); }
         settings.custom_path = custom_path;
     }
@@ -70,7 +70,7 @@ pub fn set_metadata_writer(custom_path: Option<String>) -> Result<(), String> {
 /// État affiché dans les Paramètres.
 #[derive(serde::Serialize)]
 pub struct ExifToolStatus {
-    /// ExifTool trouvé et fonctionnel.
+    /// `ExifTool` trouvé et fonctionnel.
     pub available: bool,
     /// Origine de l'exécutable : « custom », « bundled » ou « path ».
     pub source: Option<&'static str>,
@@ -80,7 +80,7 @@ pub struct ExifToolStatus {
     pub error: Option<String>,
 }
 
-/// Détecte ExifTool à nouveau (l'utilisateur a pu l'installer entre-temps) et renvoie son état.
+/// Détecte `ExifTool` à nouveau (l'utilisateur a pu l'installer entre-temps) et renvoie son état.
 #[tauri::command(async)]
 pub fn get_exiftool_status() -> ExifToolStatus {
     *lock(&LAUNCHER) = None;
@@ -96,7 +96,7 @@ pub fn get_exiftool_status() -> ExifToolStatus {
     }
 }
 
-/// Démarre un processus à l'avance (premier mot-clé modifié), pour que « Appliquer » ne paie pas le démarrage d'ExifTool.
+/// Démarre un processus à l'avance (premier mot-clé modifié), pour que « Appliquer » ne paie pas le démarrage d'`ExifTool`.
 /// Sans effet en mode interne ou si un processus tourne déjà.
 #[tauri::command]
 pub fn exiftool_prewarm() {
@@ -118,7 +118,7 @@ pub fn exiftool_prewarm() {
 #[derive(Clone)]
 struct Launcher {
     program: PathBuf,
-    /// Arguments placés avant ceux d'ExifTool (le script, quand il est lancé par `perl`).
+    /// Arguments placés avant ceux d'`ExifTool` (le script, quand il est lancé par `perl`).
     prefix: Vec<OsString>,
     source: &'static str,
     version: String,
@@ -140,7 +140,7 @@ impl Launcher {
     }
 }
 
-/// Windows : pas de fenêtre de console pour ExifTool (application sans console). Sans effet ailleurs.
+/// Windows : pas de fenêtre de console pour `ExifTool` (application sans console). Sans effet ailleurs.
 #[cfg(windows)]
 fn hide_console_window(command: &mut Command) {
     use std::os::windows::process::CommandExt;
@@ -151,8 +151,8 @@ fn hide_console_window(command: &mut Command) {
 #[cfg(not(windows))]
 fn hide_console_window(_command: &mut Command) {}
 
-/// Windows : lie le processus ExifTool à la vie de l'application (objet Job « KILL_ON_JOB_CLOSE »). Si l'application s'arrête sans passer par
-/// `shutdown` (processus tué, Ctrl+C du mode dev, plantage), Windows ferme le Job et tue ExifTool : sinon `exiftool.exe` (mode -stay_open)
+/// Windows : lie le processus `ExifTool` à la vie de l'application (objet Job « `KILL_ON_JOB_CLOSE` »). Si l'application s'arrête sans passer par
+/// `shutdown` (processus tué, Ctrl+C du mode dev, plantage), Windows ferme le Job et tue `ExifTool` : sinon `exiftool.exe` (mode -`stay_open`)
 /// survit, verrouille le dossier `exiftool` de `target` et fait échouer la compilation suivante. Au mieux : un échec est ignoré. Sans effet ailleurs.
 #[cfg(windows)]
 fn bind_to_app_lifetime(child: &Child) {
@@ -173,7 +173,7 @@ fn bind_to_app_lifetime(child: &Child) {
         SetInformationJobObject(
             job,
             JobObjectExtendedLimitInformation,
-            &info as *const _ as *const std::ffi::c_void,
+            (&raw const info).cast::<std::ffi::c_void>(),
             std::mem::size_of::<JOBOBJECT_EXTENDED_LIMIT_INFORMATION>() as u32,
         )
         .ok()?;
@@ -200,7 +200,7 @@ fn launcher() -> Result<Launcher, String> {
 }
 
 fn detect() -> Result<Launcher, String> {
-    let custom_path = SETTINGS.read().unwrap_or_else(|poisoned| poisoned.into_inner()).custom_path.clone();
+    let custom_path = SETTINGS.read().unwrap_or_else(std::sync::PoisonError::into_inner).custom_path.clone();
     // Chemin choisi par l'utilisateur : il est le seul essayé (choix explicite, pas de bascule silencieuse sur une autre version).
     if let Some(path) = custom_path {
         return probe(path.clone(), Vec::new(), "custom").map_err(|error| format!("ExifTool introuvable au chemin choisi ({}) : {error}", path.display()));
@@ -241,14 +241,14 @@ fn detect() -> Result<Launcher, String> {
     }
 }
 
-/// Parses an ExifTool `-ver` output (e.g. `"12.00"`, `"13.59"`, `"12.76a"`) into `(major, minor)`.
+/// Parses an `ExifTool` `-ver` output (e.g. `"12.00"`, `"13.59"`, `"12.76a"`) into `(major, minor)`.
 pub(crate) fn parse_version(raw: &str) -> Option<(u32, u32)> {
     let trimmed = raw.trim();
     let (major_str, rest) = trimmed.split_once('.')?;
     if major_str.is_empty() || !major_str.bytes().all(|b| b.is_ascii_digit()) {
         return None;
     }
-    let minor_digits: String = rest.chars().take_while(|c| c.is_ascii_digit()).collect();
+    let minor_digits: String = rest.chars().take_while(char::is_ascii_digit).collect();
     if minor_digits.is_empty() {
         return None;
     }
@@ -370,16 +370,16 @@ impl Process {
         }
         // -echo4 writes the marker to stderr once the command is processed so both streams can be read up to the same marker.
         input.push_str(&format!("-echo4\n{ready}\n-execute{id}\n"));
-        self.stdin.write_all(input.as_bytes()).and_then(|_| self.stdin.flush()).map_err(|error| format!("ExifTool ne répond plus : {error}"))?;
+        self.stdin.write_all(input.as_bytes()).and_then(|()| self.stdin.flush()).map_err(|error| format!("ExifTool ne répond plus : {error}"))?;
         let deadline = Instant::now() + COMMAND_TIMEOUT;
         let stdout = read_until_marker(&self.stdout, &ready, deadline)?;
         let stderr = read_until_marker(&self.stderr, &ready, deadline)?;
         Ok((stdout, stderr))
     }
 
-    /// Demande à ExifTool de se terminer ; le tue s'il ne l'a pas fait après quelques secondes.
+    /// Demande à `ExifTool` de se terminer ; le tue s'il ne l'a pas fait après quelques secondes.
     fn stop(mut self) {
-        let _ = self.stdin.write_all(b"-stay_open\nFalse\n").and_then(|_| self.stdin.flush());
+        let _ = self.stdin.write_all(b"-stay_open\nFalse\n").and_then(|()| self.stdin.flush());
         let deadline = Instant::now() + Duration::from_secs(3);
         while Instant::now() < deadline {
             if let Ok(Some(_)) = self.child.try_wait() { return; }
@@ -419,7 +419,7 @@ static POOL_CHANGED: Condvar = Condvar::new();
 static IDLE_WATCHER: OnceLock<()> = OnceLock::new();
 
 fn lock<T>(mutex: &Mutex<T>) -> std::sync::MutexGuard<'_, T> {
-    mutex.lock().unwrap_or_else(|poisoned| poisoned.into_inner())
+    mutex.lock().unwrap_or_else(std::sync::PoisonError::into_inner)
 }
 
 /// Un processus libre, ou un nouveau si la limite n'est pas atteinte ; sinon attend qu'un processus soit rendu.
@@ -442,7 +442,7 @@ fn acquire(found: &Launcher) -> Result<Process, String> {
                 POOL_CHANGED.notify_one();
             });
         }
-        pool = POOL_CHANGED.wait(pool).unwrap_or_else(|poisoned| poisoned.into_inner());
+        pool = POOL_CHANGED.wait(pool).unwrap_or_else(std::sync::PoisonError::into_inner);
     }
 }
 
@@ -461,7 +461,7 @@ fn release(process: Process, healthy: bool) {
     POOL_CHANGED.notify_one();
 }
 
-/// Arrête les processus au repos depuis IDLE_TIMEOUT (fil unique, vivant tant que l'application tourne).
+/// Arrête les processus au repos depuis `IDLE_TIMEOUT` (fil unique, vivant tant que l'application tourne).
 fn watch_idle() {
     loop {
         std::thread::sleep(Duration::from_secs(5));
@@ -493,7 +493,7 @@ static ACTIVE_WRITES: Mutex<usize> = Mutex::new(0);
 static WRITES_CHANGED: Condvar = Condvar::new();
 static CLOSING: AtomicBool = AtomicBool::new(false);
 
-/// RAII guard tracking an active `write_to` call (ExifTool execution, recovery, flush, rename).
+/// RAII guard tracking an active `write_to` call (`ExifTool` execution, recovery, flush, rename).
 struct ActiveWriteGuard;
 
 impl ActiveWriteGuard {
@@ -529,7 +529,7 @@ fn wait_for_active_writes(timeout: Duration) -> bool {
     let active = lock(&ACTIVE_WRITES);
     let (guard, _) = WRITES_CHANGED
         .wait_timeout_while(active, timeout, |count| *count > 0)
-        .unwrap_or_else(|poisoned| poisoned.into_inner());
+        .unwrap_or_else(std::sync::PoisonError::into_inner);
     *guard == 0
 }
 
@@ -541,14 +541,14 @@ pub fn begin_shutdown_and_wait(timeout: Duration) -> bool {
         CLOSING.store(true, Ordering::SeqCst);
         let (guard, _) = WRITES_CHANGED
             .wait_timeout_while(active, timeout, |count| *count > 0)
-            .unwrap_or_else(|poisoned| poisoned.into_inner());
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
         *guard == 0
     };
     shutdown();
     finished
 }
 
-/// Executes an ExifTool command on the persistent pool, rejecting raw newlines, checking for `Error` lines on stderr,
+/// Executes an `ExifTool` command on the persistent pool, rejecting raw newlines, checking for `Error` lines on stderr,
 /// and logging any `Warning` lines. Returns `(stdout, stderr)`.
 fn run_raw(args: &[String]) -> std::io::Result<(String, String)> {
     if args.iter().any(|arg| arg.contains(['\n', '\r'])) {
@@ -568,7 +568,7 @@ fn run_raw(args: &[String]) -> std::io::Result<(String, String)> {
     Ok((stdout, stderr))
 }
 
-/// Exécute une commande d'écriture : succès seulement si ExifTool annonce le fichier écrit (ou déjà à jour) sans erreur.
+/// Exécute une commande d'écriture : succès seulement si `ExifTool` annonce le fichier écrit (ou déjà à jour) sans erreur.
 fn run(args: Vec<String>) -> std::io::Result<()> {
     let (stdout, stderr) = run_raw(&args)?;
     let done = stdout.lines().any(|line| {
@@ -603,7 +603,7 @@ fn target_of(path: &Path) -> Target {
     }
 }
 
-/// Affectation `-TAG=valeur`, valeur échappée pour l'option -ec d'ExifTool (barre oblique inverse doublée, retour à la ligne en `\n`, retour chariot en `\r`).
+/// Affectation `-TAG=valeur`, valeur échappée pour l'option -ec d'`ExifTool` (barre oblique inverse doublée, retour à la ligne en `\n`, retour chariot en `\r`).
 /// Valeur vide : la balise est supprimée.
 fn assign(tag: &str, value: &str) -> String {
     format!("-{tag}={}", value.replace('\\', "\\\\").replace('\n', "\\n").replace('\r', "\\r"))
@@ -616,7 +616,7 @@ fn push_list(args: &mut Vec<String>, tag: &str, values: impl IntoIterator<Item =
     if args.len() == before { args.push(assign(tag, "")); }
 }
 
-/// Refuses immediately if `file` is read-only so ExifTool cannot replace it via rename (POSIX) or fail mid-write (Windows).
+/// Refuses immediately if `file` is read-only so `ExifTool` cannot replace it via rename (POSIX) or fail mid-write (Windows).
 fn ensure_writable(file: &Path) -> std::io::Result<()> {
     if std::fs::metadata(file)?.permissions().readonly() {
         return Err(std::io::Error::new(
@@ -653,8 +653,8 @@ fn remove_temp_file(path: &Path) {
     let _ = std::fs::remove_file(path);
 }
 
-/// Prevents ExifTool from interpreting a relative path starting with `-` as an option.
-/// `--` cannot be used in `-stay_open True -@ -` mode because ExifTool would treat `-execute` and `-stay_open` as filenames.
+/// Prevents `ExifTool` from interpreting a relative path starting with `-` as an option.
+/// `--` cannot be used in `-stay_open True -@ -` mode because `ExifTool` would treat `-execute` and `-stay_open` as filenames.
 fn safe_arg_path(path: &Path) -> String {
     let raw = path.to_string_lossy();
     if raw.starts_with('-') {
@@ -689,7 +689,7 @@ fn overwrite_file(file: &Path, tag_args: Vec<String>, track_recovery: bool) -> s
     })
 }
 
-/// Modifies an existing file: checks writability, runs ExifTool (`<file>_exiftool_tmp` then replace), tracks recovery on failure, and flushes to disk.
+/// Modifies an existing file: checks writability, runs `ExifTool` (`<file>_exiftool_tmp` then replace), tracks recovery on failure, and flushes to disk.
 fn overwrite(file: &Path, tag_args: Vec<String>) -> std::io::Result<()> {
     ensure_writable(file)?;
     overwrite_file(file, tag_args, true)?;
@@ -702,9 +702,9 @@ fn overwrite(file: &Path, tag_args: Vec<String>) -> std::io::Result<()> {
 #[derive(Clone, Copy, Debug, PartialEq, Eq, serde::Serialize)]
 #[serde(rename_all = "snake_case")]
 pub enum RecoveryKind {
-    /// ExifTool had erased the original: its temporary file was renamed back to the original name.
+    /// `ExifTool` had erased the original: its temporary file was renamed back to the original name.
     Restored,
-    /// ExifTool had erased the original and the temporary file could not be renamed back: it is the only copy of the photo.
+    /// `ExifTool` had erased the original and the temporary file could not be renamed back: it is the only copy of the photo.
     OnlyCopyKept,
     /// The state of the original is unclear: the temporary file is kept, just in case.
     TempKept,
@@ -717,7 +717,7 @@ pub struct Recovery {
     pub temp: String,
     /// Why the temporary file was kept (rename or read error, original no longer a file); empty when restored.
     pub detail: String,
-    /// ExifTool error that caused the cleanup (filled by `overwrite`).
+    /// `ExifTool` error that caused the cleanup (filled by `overwrite`).
     pub error: String,
 }
 
@@ -762,18 +762,18 @@ pub fn write_recovery_log(logs_dir: &Path, recoveries: &[Recovery], now: chrono:
     crate::write_timestamped_log(logs_dir, "write-recovery", &text, now)
 }
 
-/// Temporary file ExifTool writes next to `file` with `-overwrite_original`.
+/// Temporary file `ExifTool` writes next to `file` with `-overwrite_original`.
 fn exiftool_temp_of(file: &Path) -> PathBuf {
     PathBuf::from(format!("{}_exiftool_tmp", file.display()))
 }
 
-/// Cleanup after a failed ExifTool write on `file`. Returns what was done when something beyond a plain failure happened.
+/// Cleanup after a failed `ExifTool` write on `file`. Returns what was done when something beyond a plain failure happened.
 ///
-/// When its first rename fails, ExifTool deletes the original and renames again; if that second rename fails too, the temporary file is the
+/// When its first rename fails, `ExifTool` deletes the original and renames again; if that second rename fails too, the temporary file is the
 /// only copy left (seen on volumes without POSIX delete semantics: FAT32 / exFAT, network shares, with the file held open by another program).
 /// So the temporary file is deleted only when the original is known to still exist:
 /// - original present: the temporary file is a leftover, it is deleted (nothing left in the user's folder);
-/// - original missing: the temporary file (complete, written by ExifTool before the rename) is renamed back to the original name;
+/// - original missing: the temporary file (complete, written by `ExifTool` before the rename) is renamed back to the original name;
 /// - anything else (state unknown, rename impossible): the temporary file is kept and its path is reported. Never deleted in doubt.
 fn recover_after_failure(file: &Path) -> Option<Recovery> {
     let temp = exiftool_temp_of(file);
@@ -837,7 +837,7 @@ pub(crate) fn path_lock(path: &Path) -> std::sync::MutexGuard<'static, ()> {
     lock(&LOCKS[(hasher.finish() % LOCKS.len() as u64) as usize])
 }
 
-/// Unique temporary sidecar path preserving the `.xmp` extension so ExifTool infers XMP format.
+/// Unique temporary sidecar path preserving the `.xmp` extension so `ExifTool` infers XMP format.
 fn temp_sidecar_path(image_path: &Path) -> PathBuf {
     static NEXT_TEMP_ID: AtomicU64 = AtomicU64::new(1);
     let n = NEXT_TEMP_ID.fetch_add(1, Ordering::Relaxed);
@@ -886,9 +886,9 @@ fn write_to_resolved(
         // `photo.xmp`, which the image would otherwise keep reading. Copy, update, flush, then publish without overwriting: `photo.xmp` is never modified.
         let created = std::fs::copy(&seed, &temp)
             .and_then(|_| make_writable(&temp))
-            .and_then(|_| overwrite_file(&temp, tag_args, false))
-            .and_then(|_| crate::flush_to_disk(&temp))
-            .and_then(|_| publish_new_sidecar(&temp, &sidecar));
+            .and_then(|()| overwrite_file(&temp, tag_args, false))
+            .and_then(|()| crate::flush_to_disk(&temp))
+            .and_then(|()| publish_new_sidecar(&temp, &sidecar));
         if created.is_err() {
             remove_temp_file(&exiftool_temp_of(&temp));
             remove_temp_file(&temp);
@@ -905,7 +905,7 @@ fn write_to_resolved(
         remove_temp_file(&temp);
         return Err(error);
     }
-    if let Err(error) = crate::flush_to_disk(&temp).and_then(|_| publish_new_sidecar(&temp, &sidecar)) {
+    if let Err(error) = crate::flush_to_disk(&temp).and_then(|()| publish_new_sidecar(&temp, &sidecar)) {
         remove_temp_file(&temp);
         return Err(error);
     }
@@ -949,8 +949,8 @@ fn is_non_face_region_json(item: &serde_json::Value) -> bool {
         })
 }
 
-/// Parses ExifTool `-j -struct -n -XMP-mwg-rs:RegionInfo` output and keeps only non-face MWG regions.
-/// When `require_present` is false (speculative probe for ExtendedXMP or non-UTF-8 sidecars), missing `RegionInfo`
+/// Parses `ExifTool` `-j -struct -n -XMP-mwg-rs:RegionInfo` output and keeps only non-face MWG regions.
+/// When `require_present` is false (speculative probe for `ExtendedXMP` or non-UTF-8 sidecars), missing `RegionInfo`
 /// is treated as having no non-face regions rather than failing the write.
 fn parse_preserved_mwg_regions_with(json: &str, require_present: bool) -> std::io::Result<PreservedMwgRegions> {
     let root: serde_json::Value = serde_json::from_str(json)
@@ -990,8 +990,8 @@ enum MwgProbe {
     Speculative,
 }
 
-/// Decides whether `write_metadata` needs to invoke ExifTool to read non-face MWG regions before writing face regions.
-/// Keeps the fast path (no extra ExifTool call) for standard JPEGs/HEICs/UTF-8 sidecars without non-face regions.
+/// Decides whether `write_metadata` needs to invoke `ExifTool` to read non-face MWG regions before writing face regions.
+/// Keeps the fast path (no extra `ExifTool` call) for standard JPEGs/HEICs/UTF-8 sidecars without non-face regions.
 fn mwg_preservation_probe(target: Target, source: Option<&Path>, raw_xmp: Option<&str>) -> MwgProbe {
     if raw_xmp.is_some_and(crate::faces::has_non_face_mwg_regions) {
         return MwgProbe::KnownPresent;
@@ -1005,7 +1005,7 @@ fn mwg_preservation_probe(target: Target, source: Option<&Path>, raw_xmp: Option
     MwgProbe::Skip
 }
 
-/// Reads `XMP-mwg-rs:RegionInfo` from `source` via the persistent ExifTool pool using `-j -struct -n`.
+/// Reads `XMP-mwg-rs:RegionInfo` from `source` via the persistent `ExifTool` pool using `-j -struct -n`.
 fn read_preserved_mwg_regions(source: &Path, require_present: bool) -> std::io::Result<PreservedMwgRegions> {
     let args = vec![
         "-j".to_string(),
@@ -1018,18 +1018,19 @@ fn read_preserved_mwg_regions(source: &Path, require_present: bool) -> std::io::
     parse_preserved_mwg_regions_with(&stdout, require_present)
 }
 
-/// Écrit les modifications `update` en une seule commande ExifTool :
-/// - mots-clés actifs (un chemin par mot-clé) : dc:subject, digiKam TagsList, Lightroom hierarchicalSubject, Media Pro CatalogSets,
-///   Microsoft LastKeywordXMP, ACDSee categories ; dans les JPEG, aussi IPTC Keywords et EXIF XPKeywords ;
-/// - titre : XMP dc:title et acdsee:caption ; dans les JPEG, aussi IPTC ObjectName et EXIF XPTitle ;
+/// Écrit les modifications `update` en une seule commande `ExifTool` :
+/// - mots-clés actifs (un chemin par mot-clé) : dc:subject, digiKam `TagsList`, Lightroom hierarchicalSubject, Media Pro `CatalogSets`,
+///   Microsoft `LastKeywordXMP`, `ACDSee` categories ; dans les JPEG, aussi IPTC Keywords et EXIF `XPKeywords` ;
+/// - titre : XMP dc:title et acdsee:caption ; dans les JPEG, aussi IPTC `ObjectName` et EXIF `XPTitle` ;
 /// - description : XMP dc:description, exif:UserComment, tiff:ImageDescription, acdsee:notes ; dans les JPEG, aussi le commentaire JPEG,
-///   EXIF ImageDescription, UserComment et XPComment, et IPTC Caption ;
+///   EXIF `ImageDescription`, `UserComment` et `XPComment`, et IPTC Caption ;
 /// - auteur : XMP dc:creator et tiff:Artist ; dans les JPEG, aussi IPTC By-line et EXIF Artist ;
-/// - copyright : XMP dc:rights et tiff:Copyright ; dans les JPEG, aussi IPTC CopyrightNotice et EXIF Copyright (« © » devient « (c) ») ;
+/// - copyright : XMP dc:rights et tiff:Copyright ; dans les JPEG, aussi IPTC `CopyrightNotice` et EXIF Copyright (« © » devient « (c) ») ;
 /// - crédit : XMP photoshop:Credit ; dans les JPEG, aussi IPTC Credit ; conditions d'utilisation : XMP xmpRights:UsageTerms ;
-///   e-mail de l'auteur : XMP Iptc4xmpCore:CreatorContactInfo / CiEmailWork ;
-/// - zones de visage : MWG RegionInfo et Microsoft RegionInfoMP (mêmes champs que exif::update_xmp_regions ; ACDSee non écrit).
+///   e-mail de l'auteur : XMP Iptc4xmpCore:CreatorContactInfo / `CiEmailWork` ;
+/// - zones de visage : MWG `RegionInfo` et Microsoft `RegionInfoMP` (mêmes champs que `exif::update_xmp_regions` ; `ACDSee` non écrit).
 ///   When writing face regions, existing non-face MWG regions (`Pet`, `Focus`, `BarCode`, etc.) are preserved.
+///
 /// Prepends `-tagsFromFile @ -IPTC:All` (excluding `CodedCharacterSet` and any IPTC tag overwritten by `update`)
 /// so legacy non-UTF-8 IPTC tags in a JPEG are decoded and re-encoded as UTF-8 when `-IPTC:CodedCharacterSet=UTF8` is applied.
 fn iptc_utf8_recode_prefix(update: &crate::exif::MetadataUpdate) -> Vec<String> {
@@ -1107,8 +1108,8 @@ pub fn write_metadata(image_path: &Path, update: &crate::exif::MetadataUpdate) -
     write_to_resolved(image_path, target, sidecar_target, args, update.adds_values() || has_preserved)
 }
 
-/// Escapes a value inside an ExifTool structure (`{Field=value,...}`): syntax characters, `#` (comment start),
-/// and leading/trailing whitespace (otherwise trimmed by ExifTool's struct parser) are prefixed with `|`.
+/// Escapes a value inside an `ExifTool` structure (`{Field=value,...}`): syntax characters, `#` (comment start),
+/// and leading/trailing whitespace (otherwise trimmed by `ExifTool`'s struct parser) are prefixed with `|`.
 fn struct_value(value: &str) -> String {
     let trimmed_start = value.len() - value.trim_start_matches([' ', '\t', '\n', '\r']).len();
     let trimmed_end = value.trim_end_matches([' ', '\t', '\n', '\r']).len();
@@ -1123,7 +1124,7 @@ fn struct_value(value: &str) -> String {
     escaped
 }
 
-/// Serializes a `serde_json::Value` into ExifTool's `{Key=val,...}` / `[...]` struct syntax.
+/// Serializes a `serde_json::Value` into `ExifTool`'s `{Key=val,...}` / `[...]` struct syntax.
 fn json_to_exiftool_struct(value: &serde_json::Value) -> String {
     match value {
         serde_json::Value::Null => String::new(),
@@ -1188,7 +1189,7 @@ fn lang_alt_tag(tag: &str, value: &str) -> String {
     if value.is_empty() { tag.to_string() } else { format!("{tag}-x-default") }
 }
 
-/// Arguments ExifTool des mots-clés, du titre et de la description de `update`.
+/// Arguments `ExifTool` des mots-clés, du titre et de la description de `update`.
 fn metadata_args(image_path: &Path, update: &crate::exif::MetadataUpdate) -> Vec<String> {
     let jpeg = matches!(target_of(image_path), Target::Jpeg);
     let mut args = Vec::new();
@@ -1351,7 +1352,7 @@ pub fn write_marking(image_path: &Path, edit: crate::exif::XmpEdit) -> std::io::
 }
 
 /// Arguments of a lossless rotation (see orientation.rs): XMP `tiff:Orientation` always, and in a JPEG the EXIF `Orientation` of IFD0 too.
-/// Numeric values (`#`): ExifTool would otherwise expect the printed names ("Rotate 90 CW"…).
+/// Numeric values (`#`): `ExifTool` would otherwise expect the printed names ("Rotate 90 CW"…).
 fn orientation_args(image_path: &Path, orientation: u32) -> Vec<String> {
     let mut args = vec![format!("-XMP-tiff:Orientation#={orientation}")];
     if matches!(target_of(image_path), Target::Jpeg) { args.push(format!("-IFD0:Orientation#={orientation}")); }

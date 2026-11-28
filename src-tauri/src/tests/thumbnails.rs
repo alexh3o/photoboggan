@@ -106,7 +106,7 @@ fn dng_without_jpeg_uses_uncompressed_rgb_thumbnail() {
 }
 
 /// Both quality levels write a decodable JPEG of the right size, and "normal" is lighter than "high".
-/// write_jpeg_with_quality is called directly: the global quality setting is never changed in a fast test.
+/// `write_jpeg_with_quality` is called directly: the global quality setting is never changed in a fast test.
 #[test]
 fn thumbnail_quality_levels_write_valid_jpegs() {
     let dir = tempfile::tempdir().unwrap();

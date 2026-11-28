@@ -1,4 +1,4 @@
-//! Tests de la synchronisation incrémentale (library_sync.rs) : détection des ajouts, modifications et suppressions, sans jamais prendre
+//! Tests de la synchronisation incrémentale (`library_sync.rs`) : détection des ajouts, modifications et suppressions, sans jamais prendre
 //! un disque absent pour une suppression.
 
 use super::*;
@@ -229,7 +229,7 @@ fn backdate(path: &Path) {
     file.set_modified(std::time::SystemTime::now() - std::time::Duration::from_secs(3600)).unwrap();
 }
 
-/// Reads `path` and stores it like a scan does (store_read_batch), returning its size and modification date.
+/// Reads `path` and stores it like a scan does (`store_read_batch`), returning its size and modification date.
 fn read_and_store(pool: &DbPool, path: &Path) -> (i64, i64) {
     let metadata = fs::metadata(path).unwrap();
     let (size, modified) = (metadata.len() as i64, modified_millis(&metadata));

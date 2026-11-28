@@ -185,7 +185,7 @@ fn memberships_list_every_manual_album_pair() {
     add_photos(&conn, one, &[a, b]).unwrap();
     add_photos(&conn, two, &[b]).unwrap();
     let mut pairs = memberships(&conn).unwrap();
-    pairs.sort();
+    pairs.sort_unstable();
     assert_eq!(pairs, vec![(one, a), (one, b), (two, b)]);
 }
 

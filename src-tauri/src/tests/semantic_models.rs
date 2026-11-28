@@ -13,8 +13,8 @@ fn the_manifest_matches_the_phase_0_constants() {
     assert_eq!(model.template_max_words, 3);
     // Same values as the reference fixture written by make_reference.py.
     let reference: serde_json::Value = serde_json::from_str(include_str!("fixtures/semantic_reference.json")).unwrap();
-    assert!((model.logit_scale as f64 - reference["logit_scale"].as_f64().unwrap()).abs() < 1e-3);
-    assert!((model.logit_bias as f64 - reference["logit_bias"].as_f64().unwrap()).abs() < 1e-3);
+    assert!((f64::from(model.logit_scale) - reference["logit_scale"].as_f64().unwrap()).abs() < 1e-3);
+    assert!((f64::from(model.logit_bias) - reference["logit_bias"].as_f64().unwrap()).abs() < 1e-3);
     for role in ["vision", "text", "tokenizer"] {
         let file = model.file(role).unwrap_or_else(|| panic!("no {role} file"));
         assert_eq!(file.sha256.len(), 64);

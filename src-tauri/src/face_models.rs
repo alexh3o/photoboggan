@@ -1,10 +1,10 @@
-//! Files of face detection and recognition: ONNX models (YuNet, SFace) and the ONNX Runtime library of the platform.
+//! Files of face detection and recognition: ONNX models (`YuNet`, `SFace`) and the ONNX Runtime library of the platform.
 //!
 //! They are downloaded on demand from a photoboggan GitHub release (manifest `face_models.json`, prepared by scripts/prepare-face-models.mjs:
 //! names, sizes and SHA-256 pinned), or copied from a folder chosen by the user (no Internet). Downloads are refused in offline mode
 //! (`set_internet_allowed`, also checked by every other network access of the application).
 //! They live in the application data folder (`models/`), never in photo folders. The generic part (verified install, download, import)
-//! is in model_files.rs; the ONNX Runtime library is shared with the semantic search (semantic_models.rs).
+//! is in `model_files.rs`; the ONNX Runtime library is shared with the semantic search (`semantic_models.rs`).
 
 use serde::{Deserialize, Serialize};
 use std::path::{Path, PathBuf};
@@ -50,7 +50,7 @@ pub fn set_internet_allowed(allowed: bool) {
     INTERNET_ALLOWED.store(allowed, Ordering::Relaxed);
 }
 
-/// Accès à Internet autorisé : vérifié aussi par les téléchargements des zones privées (private_maps.rs).
+/// Accès à Internet autorisé : vérifié aussi par les téléchargements des zones privées (`private_maps.rs`).
 pub fn internet_allowed() -> bool {
     INTERNET_ALLOWED.load(Ordering::Relaxed)
 }
@@ -87,12 +87,12 @@ fn is_installed(dir: &Path, file: &ModelFile) -> bool {
 }
 
 /// ONNX Runtime library of this platform: (base address of the release, expected file). Shared with the semantic search
-/// (semantic_models.rs), which installs it in the same `models/` folder when faces never did. None: no library published for this system.
+/// (`semantic_models.rs`), which installs it in the same `models/` folder when faces never did. None: no library published for this system.
 pub(crate) fn runtime_file() -> Option<(&'static str, Expected<'static>)> {
     platform_files().into_iter().find(|file| file.role == "runtime").map(|file| (manifest().base_url.as_str(), file.expected()))
 }
 
-/// Chemins des fichiers installés, utilisés par face_detect.rs.
+/// Chemins des fichiers installés, utilisés par `face_detect.rs`.
 pub struct ModelPaths {
     pub runtime: PathBuf,
     pub detector: PathBuf,
@@ -138,7 +138,7 @@ pub fn get_face_model_status(state: State<'_, AppState>) -> ModelStatus {
     status(&models_dir(&state))
 }
 
-/// Télécharge les fichiers manquants depuis la release GitHub (tâche de la file : progression par « scan-progress », arrêt par cancel_scan).
+/// Télécharge les fichiers manquants depuis la release GitHub (tâche de la file : progression par « scan-progress », arrêt par `cancel_scan`).
 #[tauri::command]
 pub async fn download_face_models(app: tauri::AppHandle, state: State<'_, AppState>, task_id: String) -> Result<(), String> {
     let dir = models_dir(&state);

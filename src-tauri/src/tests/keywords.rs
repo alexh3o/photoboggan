@@ -64,7 +64,7 @@ fn written_keyword_ids_are_those_stored_after_reading() {
     let alice = ensure_node(&conn, ensure_node(&conn, 0, "Personnes").unwrap(), "Alice").unwrap();
     let lieux = ensure_node(&conn, 0, "Lieux").unwrap();
     let mut expected = vec![alice, lieux];
-    expected.sort();
+    expected.sort_unstable();
     assert_eq!(photo_keyword_ids(&conn, photo).unwrap(), expected, "seuls les derniers niveaux, et seulement ceux de cette photo");
     assert!(store_photo_keywords(&conn, &[("C:/P/a.jpg".into(), Vec::new())]));
     assert!(photo_keyword_ids(&conn, photo).unwrap().is_empty());

@@ -416,7 +416,7 @@ fn face_stats(conn: &Connection, ids: Option<&[i64]>) -> rusqlite::Result<(i64, 
 /// Photos analysed by the content search (up-to-date vs expired) among the photos counted.
 fn analysis_stats(conn: &Connection, ids: Option<&[i64]>, eligible: i64) -> rusqlite::Result<CoverageStats> {
     let (scope, mut bound) = period_scope("e.photo_id", ids);
-    bound.push(crate::semantic_models::active_model().id.to_string().into());
+    bound.push(crate::semantic_models::active_model().id.clone().into());
     let sql = format!(
         "SELECT
             COALESCE(SUM(CASE WHEN e.file_size = COALESCE(p.file_size, 0) AND e.file_mtime = COALESCE(p.modified, 0) THEN 1 ELSE 0 END), 0),
@@ -766,7 +766,7 @@ fn filter_options_with(conn: &Connection) -> rusqlite::Result<FilterOptions> {
     while let Some(row) = paths.next()? {
         let path = row.get::<_, Option<String>>(0)?.unwrap_or_default();
         let normalized = normalize_path(&path);
-        for (folder, prefix) in folders.iter_mut() {
+        for (folder, prefix) in &mut folders {
             if normalized.starts_with(prefix.as_str()) {
                 folder.count += 1;
             }

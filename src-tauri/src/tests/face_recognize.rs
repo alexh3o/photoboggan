@@ -1,4 +1,4 @@
-//! Tests of face_recognize.rs: alignment on the SFace template and embedding blobs.
+//! Tests of `face_recognize.rs`: alignment on the `SFace` template and embedding blobs.
 
 use super::*;
 

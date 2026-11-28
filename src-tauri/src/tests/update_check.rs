@@ -1,4 +1,4 @@
-//! Tests de la vérification des mises à jour (update_check.rs) : lecture des versions et choix de la release dans une réponse GitHub. Aucun accès au réseau.
+//! Tests de la vérification des mises à jour (`update_check.rs`) : lecture des versions et choix de la release dans une réponse GitHub. Aucun accès au réseau.
 
 use super::*;
 

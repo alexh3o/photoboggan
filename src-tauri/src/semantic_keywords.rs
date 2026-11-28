@@ -1,4 +1,4 @@
-//! Keyword suggestions of the semantic search (spec dev_tools/Evolutions/feat semantic search SigLIP 2.md, §8; decisions and measures
+//! Keyword suggestions of the semantic search (spec `dev_tools/Evolutions/feat` semantic search `SigLIP` 2.md, §8; decisions and measures
 //! in §23). Nothing here writes a keyword: the interface turns an accepted suggestion into a pending keyword, as if it were typed.
 //!
 //! - Examples score of a photo for a keyword that has at least `MIN_EXAMPLES` tagged photos with an embedding: the mean of its cosines
@@ -98,7 +98,7 @@ pub fn own_threshold(examples: &[Vec<f32>], q: f64) -> Option<f32> {
             mean_of_nearest(others, NEAREST)
         })
         .collect();
-    own.sort_by(|a, b| a.total_cmp(b));
+    own.sort_by(f32::total_cmp);
     quantile(&own, q)
 }
 

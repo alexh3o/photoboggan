@@ -1,6 +1,6 @@
 //! Updates (Settings > General > Internet, and the "Update available" dialog): lookup, download and launch of the installer.
 //!
-//! Source: the GitHub releases of the application repository. Requests are made by the backend (never by the WebView), send nothing but the
+//! Source: the GitHub releases of the application repository. Requests are made by the backend (never by the `WebView`), send nothing but the
 //! application name and version (User-Agent) and are refused in offline mode, like every other network access.
 //!
 //! Which version is offered:
@@ -13,7 +13,7 @@
 //! Download and install: the interface never provides a URL or a path. The backend finds the installer in the release itself (repository
 //! address, SHA-256 published by GitHub required), downloads it, checks size and hash, then acts only on that verified file (hash computed
 //! again just before). Windows: downloaded to the temp folder, the MSI is run with `msiexec`, then the application closes. Linux: the file
-//! (.deb, or .AppImage when the application itself runs from an AppImage) is saved in the user's Downloads folder and "install" opens that folder
+//! (.deb, or .`AppImage` when the application itself runs from an `AppImage`) is saved in the user's Downloads folder and "install" opens that folder
 //! in the file manager; the user installs it from there.
 
 use serde::Serialize;
@@ -28,7 +28,7 @@ use tauri::{Emitter, Manager};
 
 use crate::model_files::{hex, IdleReader, BODY_TIMEOUT, CONNECT_TIMEOUT, IDLE_TIMEOUT, RESPONSE_TIMEOUT};
 
-/// The application repository: the only place it is written (the interface receives the release page already checked, see RELEASE_PAGE_PREFIX).
+/// The application repository: the only place it is written (the interface receives the release page already checked, see `RELEASE_PAGE_PREFIX`).
 macro_rules! repository { () => { "alexh3o/photoboggan" }; }
 /// Most recent releases first; 30 are plenty to find the latest version of the application.
 const RELEASES_URL: &str = concat!("https://api.github.com/repos/", repository!(), "/releases?per_page=30");
@@ -93,7 +93,7 @@ pub struct UpdateInfo {
     pub asset: Option<UpdateAsset>,
 }
 
-/// Platform whose installer the release is searched for. On Linux, an application started from an AppImage (the AppImage runtime sets `APPIMAGE`)
+/// Platform whose installer the release is searched for. On Linux, an application started from an `AppImage` (the `AppImage` runtime sets `APPIMAGE`)
 /// is updated with a new `.AppImage`, not with the `.deb` (which would install a second copy through the package manager).
 fn current_platform() -> &'static str {
     if cfg!(windows) {
@@ -125,7 +125,7 @@ fn pick_asset(release: &serde_json::Value, platform: &str) -> Option<UpdateAsset
         for asset in assets {
             let name = text(asset, "name");
             let url = text(asset, "browser_download_url");
-            let size = asset.get("size").and_then(|value| value.as_u64()).unwrap_or(0);
+            let size = asset.get("size").and_then(serde_json::Value::as_u64).unwrap_or(0);
             let sha256 = text(asset, "digest").strip_prefix("sha256:").unwrap_or_default().to_ascii_lowercase();
             let valid_digest = sha256.len() == 64 && sha256.chars().all(|c| c.is_ascii_hexdigit());
             if name.ends_with(extension) && is_safe_file_name(&name) && url.starts_with(DOWNLOAD_URL_PREFIX) && size > 0 && size <= MAX_INSTALLER_BYTES && valid_digest {
@@ -144,8 +144,8 @@ fn pick_latest(body: &[u8], installed: &Version, installed_text: &str, include_p
 
     let best = releases
         .iter()
-        .filter(|release| !release.get("draft").and_then(|value| value.as_bool()).unwrap_or(false))
-        .filter(|release| allow_prereleases || !release.get("prerelease").and_then(|value| value.as_bool()).unwrap_or(false))
+        .filter(|release| !release.get("draft").and_then(serde_json::Value::as_bool).unwrap_or(false))
+        .filter(|release| allow_prereleases || !release.get("prerelease").and_then(serde_json::Value::as_bool).unwrap_or(false))
         .filter_map(|release| Some((parse_version(&text(release, "tag_name"))?, release)))
         .max_by_key(|(version, _)| version.numbers);
 
@@ -159,7 +159,7 @@ fn pick_latest(body: &[u8], installed: &Version, installed_text: &str, include_p
         current: installed_text.to_string(),
         latest: format!("{x}.{y}.{z}"),
         update_available,
-        prerelease: release.get("prerelease").and_then(|value| value.as_bool()).unwrap_or(false),
+        prerelease: release.get("prerelease").and_then(serde_json::Value::as_bool).unwrap_or(false),
         notes: text(release, "body"),
         url: Some(text(release, "html_url")).filter(|url| url.starts_with(RELEASE_PAGE_PREFIX)).unwrap_or_default(),
         published_at: text(release, "published_at"),
@@ -186,7 +186,7 @@ fn fetch_info(installed_text: &str, include_prereleases: bool) -> Result<UpdateI
     pick_latest(&body, &installed, installed_text, include_prereleases)
 }
 
-/// Vérifie la présence d'une version plus récente. Erreur « internet_disabled » en mode hors ligne.
+/// Vérifie la présence d'une version plus récente. Erreur « `internet_disabled` » en mode hors ligne.
 #[tauri::command]
 pub async fn check_for_update(app: tauri::AppHandle, include_prereleases: bool) -> Result<UpdateInfo, String> {
     let installed_text = app.package_info().version.to_string();
@@ -259,8 +259,8 @@ fn file_sha256(path: &Path) -> Result<String, String> {
     Ok(hex(&hasher.finalize()))
 }
 
-/// Télécharge l'installeur de la version `version` (tâche de la file : progression par « scan-progress », arrêt par cancel_scan).
-/// La release est relue ici : si la dernière version n'est plus `version`, erreur « update_changed » (l'interface relance une vérification).
+/// Télécharge l'installeur de la version `version` (tâche de la file : progression par « scan-progress », arrêt par `cancel_scan`).
+/// La release est relue ici : si la dernière version n'est plus `version`, erreur « `update_changed` » (l'interface relance une vérification).
 #[tauri::command]
 pub async fn download_update(app: tauri::AppHandle, task_id: String, version: String, include_prereleases: bool) -> Result<(), String> {
     let installed_text = app.package_info().version.to_string();
@@ -274,7 +274,7 @@ pub async fn download_update(app: tauri::AppHandle, task_id: String, version: St
         // Private temp folder: installers of a previous download are removed (one at a time). The user's Downloads folder is never emptied.
         if dir.ends_with("photoboggan-update") { let _ = fs::remove_dir_all(&dir); }
         fs::create_dir_all(&dir).map_err(|error| format!("Dossier de téléchargement impossible à créer : {error}"))?;
-        *DOWNLOADED.lock().unwrap_or_else(|poisoned| poisoned.into_inner()) = None;
+        *DOWNLOADED.lock().unwrap_or_else(std::sync::PoisonError::into_inner) = None;
 
         let response = ureq::get(&asset.url)
             .header("User-Agent", &format!("photoboggan/{installed_text} (update download)"))
@@ -305,7 +305,7 @@ pub async fn download_update(app: tauri::AppHandle, task_id: String, version: St
                 let _ = fs::set_permissions(&target, fs::Permissions::from_mode(0o755));
             }
         }
-        *DOWNLOADED.lock().unwrap_or_else(|poisoned| poisoned.into_inner()) = Some((target, asset.size, asset.sha256));
+        *DOWNLOADED.lock().unwrap_or_else(std::sync::PoisonError::into_inner) = Some((target, asset.size, asset.sha256));
         Ok(())
     })
     .await;
@@ -321,13 +321,13 @@ pub async fn download_update(app: tauri::AppHandle, task_id: String, version: St
 // ---------------------------------------------------------------------------------------------------------------------------------------------
 
 /// Lance l'installeur téléchargé, après avoir revérifié sa taille et sa somme SHA-256. Renvoie true si l'application se ferme (Windows : l'installeur
-/// remplace ses fichiers) ; false si elle reste ouverte (Linux : le dossier contenant le .deb / .AppImage est ouvert dans le gestionnaire de fichiers). L'interface a déjà obtenu
+/// remplace ses fichiers) ; false si elle reste ouverte (Linux : le dossier contenant le .deb / .`AppImage` est ouvert dans le gestionnaire de fichiers). L'interface a déjà obtenu
 /// l'accord de l'utilisateur pour quitter (modifications en attente).
 #[tauri::command(async)]
 pub fn install_update(app: tauri::AppHandle) -> Result<bool, String> {
-    let (path, size, sha256) = DOWNLOADED.lock().unwrap_or_else(|poisoned| poisoned.into_inner()).clone().ok_or_else(|| "update_not_downloaded".to_string())?;
+    let (path, size, sha256) = DOWNLOADED.lock().unwrap_or_else(std::sync::PoisonError::into_inner).clone().ok_or_else(|| "update_not_downloaded".to_string())?;
     if fs::metadata(&path).map(|metadata| metadata.len()).ok() != Some(size) || file_sha256(&path)? != sha256 {
-        *DOWNLOADED.lock().unwrap_or_else(|poisoned| poisoned.into_inner()) = None;
+        *DOWNLOADED.lock().unwrap_or_else(std::sync::PoisonError::into_inner) = None;
         return Err("update_corrupted".to_string());
     }
     #[cfg(windows)]

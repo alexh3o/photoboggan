@@ -1,6 +1,6 @@
-//! Visages : zones de visage lues dans les fichiers (MWG Regions, Microsoft MP, ACDSee), personnes et association photo ↔ visage.
+//! Visages : zones de visage lues dans les fichiers (MWG Regions, Microsoft MP, `ACDSee`), personnes et association photo ↔ visage.
 //!
-//! Modèle (choisi avec l'utilisateur, voir dev_tools/Evolutions/feat face recognition v2.md) :
+//! Modèle (choisi avec l'utilisateur, voir `dev_tools/Evolutions/feat` face recognition v2.md) :
 //! - coordonnées normalisées (0 à 1), coin haut-gauche, dans le repère de l'image STOCKÉE, avant l'orientation EXIF : c'est le repère des formats
 //!   MWG et MP (une rotation par le seul tag Orientation ne les change pas). L'interface applique l'orientation à l'affichage ;
 //! - lot 1 (lecture seule) : seules existent les zones importées des fichiers. Le fichier fait foi : elles sont remplacées à chaque lecture ;
@@ -30,7 +30,7 @@ pub struct FaceRegion {
 /// Ce que la lecture d'un fichier apprend sur ses visages : orientation EXIF (1 à 8) et zones (None : lecture des visages désactivée).
 pub struct PhotoFaces {
     pub orientation: u32,
-    /// Orientation the interface applies on top of the webview's own (see orientation::Resolved), stored with `orientation`.
+    /// Orientation the interface applies on top of the webview's own (see `orientation::Resolved`), stored with `orientation`.
     pub view_fix: u32,
     pub regions: Option<Vec<FaceRegion>>,
 }
@@ -45,9 +45,9 @@ impl Default for PhotoFaces {
 // Réglages : lecture activée, ordre de priorité des formats
 // ---------------------------------------------------------------------------
 
-/// Formats de zones de visage (identifiants côté interface), ordre par défaut : MWG (digiKam, Lightroom, Picasa), Microsoft (Windows Photos), ACDSee.
+/// Formats de zones de visage (identifiants côté interface), ordre par défaut : MWG (digiKam, Lightroom, Picasa), Microsoft (Windows Photos), `ACDSee`.
 pub const REGION_SOURCE_IDS: [&str; 3] = ["mwg", "microsoft", "acdsee"];
-/// Ordre de priorité à la lecture (indices dans REGION_SOURCE_IDS), réglé par exif::set_read_priority (« faces »).
+/// Ordre de priorité à la lecture (indices dans `REGION_SOURCE_IDS`), réglé par `exif::set_read_priority` (« faces »).
 pub(crate) static REGION_PRIORITY: RwLock<[usize; 3]> = RwLock::new([0, 1, 2]);
 /// Lecture des zones de visage activée (Paramètres > Visages) ; envoyée par l'interface au démarrage puis à chaque changement.
 static READ_ENABLED: AtomicBool = AtomicBool::new(false);
@@ -71,7 +71,7 @@ const ACDSEE_RS_NS: &str = "http://ns.acdsee.com/regions/";
 
 /// Zones de visage d'un paquet XMP : le premier format qui en contient, dans l'ordre de priorité réglé, l'emporte ; les autres sont ignorés.
 pub fn parse_regions(xml: &str) -> Vec<FaceRegion> {
-    let priority = *REGION_PRIORITY.read().unwrap_or_else(|poisoned| poisoned.into_inner());
+    let priority = *REGION_PRIORITY.read().unwrap_or_else(std::sync::PoisonError::into_inner);
     for index in priority {
         let regions = match index {
             0 => mwg_regions(xml),
@@ -116,7 +116,7 @@ pub(crate) fn has_non_face_mwg_regions(xml: &str) -> bool {
     false
 }
 
-/// Microsoft Photo : `MP:RegionInfo` > `Regions` > `rdf:li` (PersonDisplayName, Rectangle « x, y, w, h » avec x, y = COIN HAUT-GAUCHE).
+/// Microsoft Photo : `MP:RegionInfo` > `Regions` > `rdf:li` (`PersonDisplayName`, Rectangle « x, y, w, h » avec x, y = COIN HAUT-GAUCHE).
 fn mp_regions(xml: &str) -> Vec<FaceRegion> {
     let mut regions = Vec::new();
     for prefix in namespace_prefixes(xml, MP_NS) {
@@ -132,8 +132,8 @@ fn mp_regions(xml: &str) -> Vec<FaceRegion> {
     regions
 }
 
-/// ACDSee : `acdsee-rs:Regions` > `RegionList` > `rdf:li` (Name, Type, DLYArea). Repère de DLYArea non documenté : lu provisoirement comme le
-/// COIN HAUT-GAUCHE (hypothèse la plus probable, à confirmer sur un fichier tagué dans ACDSee).
+/// `ACDSee` : `acdsee-rs:Regions` > `RegionList` > `rdf:li` (Name, Type, `DLYArea`). Repère de `DLYArea` non documenté : lu provisoirement comme le
+/// COIN HAUT-GAUCHE (hypothèse la plus probable, à confirmer sur un fichier tagué dans `ACDSee`).
 fn acdsee_regions(xml: &str) -> Vec<FaceRegion> {
     let mut regions = Vec::new();
     for prefix in namespace_prefixes(xml, ACDSEE_RS_NS) {
@@ -157,7 +157,7 @@ fn is_face_type(region_type: Option<String>) -> bool {
 /// Coordonnées normalisées : telles quelles en unité `normalized` (ou sans unité), divisées par les dimensions en unité `pixel`.
 fn normalized(unit: Option<String>, dimensions: Option<(Option<f64>, Option<f64>)>, x: f64, y: f64, w: f64, h: f64) -> Option<(f64, f64, f64, f64)> {
     match unit.as_deref().map(str::trim) {
-        None | Some("") | Some("normalized") => Some((x, y, w, h)),
+        None | Some("" | "normalized") => Some((x, y, w, h)),
         Some("pixel") => match dimensions {
             Some((Some(width), Some(height))) if width > 0.0 && height > 0.0 => Some((x / width, y / height, w / width, h / height)),
             _ => None,
@@ -207,7 +207,7 @@ fn element_by_name<'a>(xml: &'a str, qualified: &str) -> Option<&'a str> {
         let name_end = start + open.len();
         from = name_end;
         match xml.as_bytes().get(name_end) {
-            Some(b'>') | Some(b'/') => {}
+            Some(b'>' | b'/') => {}
             Some(byte) if byte.is_ascii_whitespace() => {}
             _ => continue,
         }
@@ -228,7 +228,7 @@ fn qualified_name_start(scope: &str, colon: usize, local: &str) -> Option<usize>
     while start > 0 && (bytes[start - 1].is_ascii_alphanumeric() || bytes[start - 1] == b'-' || bytes[start - 1] == b'_') { start -= 1; }
     if start == colon || start == 0 || &scope[start..colon] == "xmlns" { return None; }
     match bytes.get(colon + 1 + local.len()) {
-        Some(b'>') | Some(b'/') | Some(b'=') => Some(start),
+        Some(b'>' | b'/' | b'=') => Some(start),
         Some(byte) if byte.is_ascii_whitespace() => Some(start),
         _ => None,
     }
@@ -250,7 +250,7 @@ fn element_by_local_name<'a>(scope: &'a str, local: &str) -> Option<&'a str> {
 }
 
 /// Valeur d'une propriété simple de nom local `local` dans `scope`, écrite en attribut (`stArea:x="0.5"`, forme d'Exiv2 / digiKam)
-/// ou en élément (`<stArea:x>0.5</stArea:x>`, forme d'ExifTool). Entités XML décodées.
+/// ou en élément (`<stArea:x>0.5</stArea:x>`, forme d'`ExifTool`). Entités XML décodées.
 fn field_value(scope: &str, local: &str) -> Option<String> {
     let needle = format!(":{local}");
     let bytes = scope.as_bytes();
@@ -301,7 +301,7 @@ fn list_items(scope: &str) -> Vec<&str> {
         let start = position + relative;
         let rest = &scope[start..];
         let is_open = rest.starts_with(OPEN)
-            && matches!(bytes.get(start + OPEN.len()), Some(b'>') | Some(b'/') | Some(b' ') | Some(b'\t') | Some(b'\r') | Some(b'\n'));
+            && matches!(bytes.get(start + OPEN.len()), Some(b'>' | b'/' | b' ' | b'\t' | b'\r' | b'\n'));
         if is_open {
             let Some(tag_end) = crate::exif::xml_tag_end(scope, start) else { break; };
             if depth == 0 { item_start = start; }
@@ -1022,7 +1022,7 @@ fn resolve_person(conn: &Connection, person_id: Option<i64>, keyword_id: Option<
     link_or_create(node_id, &name)
 }
 
-/// Nommer : les visages deviennent « confirmés » pour la personne désignée (voir resolve_person). Renvoie l'identifiant de la personne.
+/// Nommer : les visages deviennent « confirmés » pour la personne désignée (voir `resolve_person`). Renvoie l'identifiant de la personne.
 /// Lot 3 : la base seule change (visages marqués à réécrire) ; l'écriture dans les fichiers et l'activation du mot-clé viendront au lot 4.
 #[tauri::command(async)]
 pub fn assign_faces(
@@ -1413,7 +1413,7 @@ pub struct FaceWritePlan {
     pub keyword_ids: Vec<i64>,
     /// Les mots-clés écrits diffèrent de ceux de la photo (ou ont été fournis par l'utilisateur) : ils sont à écrire.
     pub keywords_changed: bool,
-    /// Mots-clés activés par la reconnaissance lors de cette écriture (à noter dans face_keywords).
+    /// Mots-clés activés par la reconnaissance lors de cette écriture (à noter dans `face_keywords`).
     added_by_faces: Vec<i64>,
     /// Mots-clés posés par la reconnaissance dont la personne n'a plus de visage sur la photo : retirés de la photo (pas de l'arbre).
     released: Vec<i64>,
@@ -1465,7 +1465,7 @@ pub fn plan_face_write(conn: &Connection, photo_id: i64, explicit: Option<&[i64]
     }
     let current = id_set(conn, "SELECT keyword_id FROM photo_keywords WHERE photo_id = ?1", photo_id)?;
     let recorded = id_set(conn, "SELECT keyword_id FROM face_keywords WHERE photo_id = ?1", photo_id)?;
-    let base: Vec<i64> = explicit.map(<[i64]>::to_vec).unwrap_or_else(|| current.iter().copied().collect());
+    let base: Vec<i64> = explicit.map_or_else(|| current.iter().copied().collect(), <[i64]>::to_vec);
     let released: Vec<i64> = recorded.iter().copied().filter(|id| !wanted.contains(id)).collect();
     let added_by_faces: Vec<i64> = wanted.iter().copied().filter(|id| !base.contains(id)).collect();
     let mut keyword_ids: Vec<i64> = base.into_iter().filter(|id| !released.contains(id)).collect();
@@ -1534,7 +1534,7 @@ pub fn discard_pending_face_writes(state: State<'_, AppState>) -> Result<usize, 
         let items: Vec<(String, PhotoFaces)> = read.into_iter().map(|(_, path, faces)| (path, faces)).collect();
         store_photo_faces_in(conn, &items)
     })
-    .map_err(|error| error.to_string())?;
+    .map_err(|error| error.clone())?;
     // Les visages remis à « inconnu » sont réattribués tout de suite (« À valider », automatique) d'après les personnes confirmées restantes :
     // la proposition n'est pas dans le fichier, elle ne reviendrait sinon qu'à la prochaine action de révision.
     if let Err(error) = crate::face_recognize::attribute_faces(&conn, Some(&photo_ids), crate::face_detect::settings().thresholds()) {
@@ -1656,7 +1656,7 @@ pub fn cluster_unknown_faces(state: State<'_, AppState>, photo_ids: Vec<i64>) ->
 // ---------------------------------------------------------------------------
 
 /// Renomme une personne non reliée à un mot-clé (pour une personne reliée, le nom affiché et écrit est celui du mot-clé : c'est lui qu'on renomme,
-/// voir keywords::rename_keyword). Erreurs : `invalid_name`, `person_linked`, `person_name_taken`, `unknown_person`.
+/// voir `keywords::rename_keyword`). Erreurs : `invalid_name`, `person_linked`, `person_name_taken`, `unknown_person`.
 #[tauri::command(async)]
 pub fn rename_person(state: State<'_, AppState>, person_id: i64, name: String) -> Result<(), String> {
     let pool = state.pool();
@@ -1690,7 +1690,7 @@ pub fn set_person_alias(state: State<'_, AppState>, person_id: i64, alias: Optio
     Ok(())
 }
 
-/// Masque ou affiche une personne : masquée, elle n'est plus attribuée ni proposée (face_recognize::attribute_faces), et l'interface la cache.
+/// Masque ou affiche une personne : masquée, elle n'est plus attribuée ni proposée (`face_recognize::attribute_faces`), et l'interface la cache.
 #[tauri::command(async)]
 pub fn set_person_hidden(state: State<'_, AppState>, person_id: i64, hidden: bool) -> Result<(), String> {
     let pool = state.pool();
@@ -1749,7 +1749,7 @@ pub fn delete_person(state: State<'_, AppState>, person_id: i64) -> Result<usize
     Ok(released)
 }
 
-/// Suppression d'une personne en base (voir delete_person), dans la transaction de l'appelant.
+/// Suppression d'une personne en base (voir `delete_person`), dans la transaction de l'appelant.
 fn delete_person_rows(conn: &Connection, person_id: i64) -> rusqlite::Result<usize> {
     let released = conn.execute(
         "UPDATE faces SET state = CASE WHEN state IN ('auto', 'confirmed') THEN 'unknown' ELSE state END, person_id = NULL, dirty = CASE WHEN state = 'confirmed' THEN 1 ELSE dirty END WHERE person_id = ?1",
@@ -1768,7 +1768,7 @@ fn delete_person_rows(conn: &Connection, person_id: i64) -> rusqlite::Result<usi
 // Fusion de personnes et nettoyage (lot 5c, spec §8 et §9.5)
 // ---------------------------------------------------------------------------
 
-/// Fusion en base (voir merge_persons), dans la transaction de l'appelant.
+/// Fusion en base (voir `merge_persons`), dans la transaction de l'appelant.
 fn merge_rows(conn: &Connection, from_person_id: i64, into_person_id: i64) -> Result<MergeResult, String> {
     let inserted = conn
         .execute(
@@ -1800,7 +1800,7 @@ fn merge_rows(conn: &Connection, from_person_id: i64, into_person_id: i64) -> Re
     Ok(MergeResult { merge_id, face_count })
 }
 
-/// Annulation en base (voir undo_person_merge), dans la transaction de l'appelant. `person` : nom, clé du nom, mot-clé lié, visage représentatif, masquage.
+/// Annulation en base (voir `undo_person_merge`), dans la transaction de l'appelant. `person` : nom, clé du nom, mot-clé lié, visage représentatif, masquage.
 #[allow(clippy::type_complexity)]
 fn undo_merge_rows(conn: &Connection, merge_id: i64, from_id: i64, to_id: i64, person: (&str, &str, Option<i64>, Option<i64>, bool)) -> rusqlite::Result<usize> {
     let (name, name_key, keyword_id, cover_id, hidden) = person;
@@ -1925,7 +1925,7 @@ pub fn get_persons_without_faces(state: State<'_, AppState>) -> Result<Vec<(i64,
     crate::keywords::collect_rows(rows)
 }
 
-/// Supprime plusieurs personnes (nettoyage), comme delete_person. Renvoie le nombre de personnes supprimées.
+/// Supprime plusieurs personnes (nettoyage), comme `delete_person`. Renvoie le nombre de personnes supprimées.
 #[tauri::command(async)]
 pub fn delete_persons(state: State<'_, AppState>, person_ids: Vec<i64>) -> Result<usize, String> {
     let pool = state.pool();
@@ -1941,7 +1941,7 @@ pub fn delete_persons(state: State<'_, AppState>, person_ids: Vec<i64>) -> Resul
 // ---------------------------------------------------------------------------
 
 /// Ajoute une zone dessinée à la main sur une photo (`rect` : x, y, w, h normalisés, repère de l'image STOCKÉE) pour la personne désignée
-/// comme pour « Nommer » (voir resolve_person). Le visage est « manuel », confirmé et à écrire ; son empreinte sera calculée au prochain scan
+/// comme pour « Nommer » (voir `resolve_person`). Le visage est « manuel », confirmé et à écrire ; son empreinte sera calculée au prochain scan
 /// de la photo (une photo qui a un visage sans empreinte est comptée « non scannée »). Renvoie (visage, personne).
 #[tauri::command(async)]
 #[allow(clippy::too_many_arguments)]

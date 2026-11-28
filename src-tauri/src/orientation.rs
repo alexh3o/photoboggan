@@ -5,7 +5,7 @@
 //! 1 = none, 6 = 90° clockwise, 3 = 180°, 8 = 90° counterclockwise; 2, 7, 4, 5 = the same four turns after a horizontal mirror.
 //!
 //! Where the value is read and written (same targets as the other metadata, see exif.rs):
-//! - JPEG: EXIF `Orientation` and XMP `tiff:Orientation` of the file. ExifTool writes both; the internal writer writes the XMP only, so
+//! - JPEG: EXIF `Orientation` and XMP `tiff:Orientation` of the file. `ExifTool` writes both; the internal writer writes the XMP only, so
 //!   which one wins at reading follows the "ignore EXIF metadata" option of the internal writer (`exiftool::skip_exif_metadata`).
 //! - RAW, PNG, WebP…: XMP `tiff:Orientation` of the sidecar, which wins over the EXIF of the file (never modified).
 //! - HEIC / HEIF, videos: not rotatable (the HEIF container carries its own rotation, which the EXIF tag must not override).
@@ -112,7 +112,7 @@ pub(crate) fn resolve(kind: Kind, exif: Option<u32>, xmp: Option<u32>) -> Resolv
     Resolved { stored, view_fix }
 }
 
-/// Orientation to apply to the JPEG preview of a RAW: `preview` is the one found without the sidecar (see thumbnails::raw_orientation),
+/// Orientation to apply to the JPEG preview of a RAW: `preview` is the one found without the sidecar (see `thumbnails::raw_orientation`),
 /// `container` the EXIF tag of the RAW. A sidecar value replaces the container one, the preview turning by the difference.
 pub(crate) fn raw_preview_orientation(preview: u32, container: u32, sidecar: Option<u32>) -> u32 {
     match sidecar.filter(|value| (1..=8).contains(value)) {
@@ -128,7 +128,7 @@ pub(crate) fn read(path: &Path) -> Resolved {
     resolve(kind, crate::thumbnails::exif_orientation(path), crate::exif::read_xmp_orientation(path))
 }
 
-/// Writes `orientation` via ExifTool (see the module comment). Refused for HEIC / HEIF and videos.
+/// Writes `orientation` via `ExifTool` (see the module comment). Refused for HEIC / HEIF and videos.
 #[cfg(test)]
 pub(crate) fn write(path: &Path, orientation: u32) -> std::io::Result<()> {
     if !is_rotatable(path) {

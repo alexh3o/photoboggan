@@ -1,13 +1,13 @@
-//! Détection des visages (lot 2) : YuNet sur la miniature en cache de chaque photo, mesures de qualité, enregistrement en base avec fusion des
-//! visages déjà connus (spec dev_tools/Evolutions/feat face recognition v2.md, §3 et §7.1).
+//! Détection des visages (lot 2) : `YuNet` sur la miniature en cache de chaque photo, mesures de qualité, enregistrement en base avec fusion des
+//! visages déjà connus (spec `dev_tools/Evolutions/feat` face recognition v2.md, §3 et §7.1).
 //!
 //! - Source : la miniature en cache (512 px minimum, déjà orientée, toujours à jour : le cache est indexé par chemin, taille et date du fichier).
 //!   Absente, elle est générée et gardée, comme pour la grille. Le fichier photo n'est jamais modifié.
-//! - YuNet a une entrée fixe de 640 × 640 : la miniature y est ramenée (plus grand côté) et complétée par du noir.
+//! - `YuNet` a une entrée fixe de 640 × 640 : la miniature y est ramenée (plus grand côté) et complétée par du noir.
 //! - Les coordonnées sont converties dans le repère de l'image STOCKÉE (avant orientation EXIF), comme les zones lues dans les fichiers (faces.rs).
-//! - Les détections faibles (score < SCORE_FLOOR) sont ignorées ; au-dessus, tout est gardé avec ses mesures (confiance, netteté, taille) :
-//!   les seuils réglables classent un visage « inconnu » ou « filtré », et un changement de seuil reclasse sans rescan (apply_face_thresholds).
-//! - ONNX Runtime: the environment is shared with the semantic search (onnx_runtime.rs), created on first use and kept (the library cannot be
+//! - Les détections faibles (score < `SCORE_FLOOR`) sont ignorées ; au-dessus, tout est gardé avec ses mesures (confiance, netteté, taille) :
+//!   les seuils réglables classent un visage « inconnu » ou « filtré », et un changement de seuil reclasse sans rescan (`apply_face_thresholds`).
+//! - ONNX Runtime: the environment is shared with the semantic search (`onnx_runtime.rs`), created on first use and kept (the library cannot be
 //!   unloaded); the model sessions, which hold most of the memory, are dropped at the end of each task.
 
 use ort::environment::Environment;
@@ -25,7 +25,7 @@ use tauri::{Emitter, State};
 
 use crate::AppState;
 
-/// Identifiant du détecteur enregistré avec chaque scan (photo_face_scans) : une photo scannée avec un autre détecteur est à rescanner.
+/// Identifiant du détecteur enregistré avec chaque scan (`photo_face_scans`) : une photo scannée avec un autre détecteur est à rescanner.
 pub const DETECTOR_ID: &str = "yunet-2023mar";
 const INPUT_SIDE: usize = 640;
 /// Détections plus faibles ignorées (le seuil de confiance réglable s'applique ensuite, sans rescan).
@@ -34,7 +34,7 @@ const SCORE_FLOOR: f32 = 0.5;
 const NMS_IOU: f32 = 0.3;
 /// Recouvrement au-delà duquel une détection correspond à un visage déjà en base (spec §7.1).
 const MATCH_IOU: f64 = 0.5;
-/// Côté du visage ramené pour la mesure de netteté (même taille que l'entrée de SFace).
+/// Côté du visage ramené pour la mesure de netteté (même taille que l'entrée de `SFace`).
 const SHARPNESS_SIDE: usize = 112;
 
 // ---------------------------------------------------------------------------
@@ -49,7 +49,7 @@ pub struct FaceSettings {
     /// Taille minimale du visage, en ‰ du plus grand côté de la photo (seul critère de taille ; le ‰ est plus fin que le %). La taille mesurée reste
     /// stockée en % (`faces.size_pct`) : la comparaison se fait en ‰ (× 10).
     pub min_size_permille: f64,
-    /// Confiance minimale de YuNet (0 à 1).
+    /// Confiance minimale de `YuNet` (0 à 1).
     pub min_confidence: f64,
     /// Netteté minimale (variance du laplacien sur le visage ramené à 112 px, en niveaux de gris).
     pub min_sharpness: f64,
@@ -101,12 +101,12 @@ impl FaceSettings {
 static SETTINGS: RwLock<Option<FaceSettings>> = RwLock::new(None);
 
 pub fn settings() -> FaceSettings {
-    SETTINGS.read().unwrap_or_else(|poisoned| poisoned.into_inner()).unwrap_or_default()
+    SETTINGS.read().unwrap_or_else(std::sync::PoisonError::into_inner).unwrap_or_default()
 }
 
 #[tauri::command]
 pub fn set_face_settings(settings: FaceSettings) {
-    *SETTINGS.write().unwrap_or_else(|poisoned| poisoned.into_inner()) = Some(settings);
+    *SETTINGS.write().unwrap_or_else(std::sync::PoisonError::into_inner) = Some(settings);
 }
 
 /// Reclasse les visages détectés non attribués (« inconnu » ↔ « filtré ») d'après les seuils actuels, sans rescan. Renvoie le nombre de visages changés.
@@ -186,8 +186,8 @@ struct Detection {
     landmarks: [f32; 10],
 }
 
-/// Détecte les visages d'une image RGB orientée. Prétraitement de YuNet : image ramenée à 640 px (plus grand côté), complétée par du noir,
-/// canaux BGR, valeurs 0 à 255, format NCHW. Post-traitement d'OpenCV (FaceDetectorYN) : trois échelles (pas de 8, 16, 32 px), score = √(cls × obj),
+/// Détecte les visages d'une image RGB orientée. Prétraitement de `YuNet` : image ramenée à 640 px (plus grand côté), complétée par du noir,
+/// canaux BGR, valeurs 0 à 255, format NCHW. Post-traitement d'`OpenCV` (`FaceDetectorYN`) : trois échelles (pas de 8, 16, 32 px), score = √(cls × obj),
 /// boîte = centre décalé dans la cellule et taille exponentielle, 5 points de repère ; puis suppression des doublons.
 fn detect(session: &Mutex<Session>, rgb: &[u8], width: usize, height: usize) -> Result<Vec<Detection>, String> {
     let scale = INPUT_SIDE as f32 / width.max(height) as f32;
@@ -205,7 +205,7 @@ fn detect(session: &Mutex<Session>, rgb: &[u8], width: usize, height: usize) -> 
             let (x0, fx) = (source_x.floor() as usize, source_x.fract());
             let x1 = (x0 + 1).min(width - 1);
             for channel in 0..3 {
-                let sample = |sx: usize, sy: usize| rgb[(sy * width + sx) * 3 + channel] as f32;
+                let sample = |sx: usize, sy: usize| f32::from(rgb[(sy * width + sx) * 3 + channel]);
                 let top = sample(x0, y0) * (1.0 - fx) + sample(x1, y0) * fx;
                 let bottom = sample(x0, y1) * (1.0 - fx) + sample(x1, y1) * fx;
                 // BGR : le canal bleu (2) en premier.
@@ -216,7 +216,7 @@ fn detect(session: &Mutex<Session>, rgb: &[u8], width: usize, height: usize) -> 
     let tensor = Tensor::from_array(([1usize, 3, INPUT_SIDE, INPUT_SIDE], input)).map_err(|error| error.to_string())?;
     let mut candidates: Vec<Detection> = Vec::new();
     {
-        let mut session = session.lock().unwrap_or_else(|poisoned| poisoned.into_inner());
+        let mut session = session.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
         let outputs = session.run(ort::inputs!["input" => tensor]).map_err(|error| format!("Détection impossible : {error}"))?;
         for stride in [8usize, 16, 32] {
             let output = |name: &str| -> Result<&[f32], String> {
@@ -248,7 +248,7 @@ fn detect(session: &Mutex<Session>, rgb: &[u8], width: usize, height: usize) -> 
     candidates.sort_by(|a, b| b.score.total_cmp(&a.score));
     let mut kept: Vec<Detection> = Vec::new();
     for candidate in candidates {
-        if kept.iter().all(|other| iou(&other.rect.map(f64::from), &candidate.rect.map(f64::from)) < NMS_IOU as f64) { kept.push(candidate); }
+        if kept.iter().all(|other| iou(&other.rect.map(f64::from), &candidate.rect.map(f64::from)) < f64::from(NMS_IOU)) { kept.push(candidate); }
     }
     // Coordonnées en pixels de l'entrée (640) -> normalisées dans l'image orientée, ramenées dans l'image.
     let (shown_width, shown_height) = (scaled_width as f32, scaled_height as f32);
@@ -292,7 +292,7 @@ fn sharpness(rgb: &[u8], width: usize, height: usize, rect: [f32; 4]) -> f64 {
         for x in 0..side {
             let source_x = ((left + (x as f32 + 0.5) * step_x) as usize).min(width - 1);
             let pixel = (source_y * width + source_x) * 3;
-            gray[y * side + x] = 0.299 * rgb[pixel] as f64 + 0.587 * rgb[pixel + 1] as f64 + 0.114 * rgb[pixel + 2] as f64;
+            gray[y * side + x] = 0.299 * f64::from(rgb[pixel]) + 0.587 * f64::from(rgb[pixel + 1]) + 0.114 * f64::from(rgb[pixel + 2]);
         }
     }
     let mut values = Vec::with_capacity((side - 2) * (side - 2));
@@ -459,7 +459,7 @@ impl EmbeddingSources<'_> {
             let (rgb, width, height) = self.thumbnail;
             let mut points = [0f32; 10];
             for point in 0..5 {
-                let (x, y) = orient_point(landmarks[point * 2] as f64, landmarks[point * 2 + 1] as f64, self.orientation);
+                let (x, y) = orient_point(f64::from(landmarks[point * 2]), f64::from(landmarks[point * 2 + 1]), self.orientation);
                 points[point * 2] = (x * width as f64) as f32;
                 points[point * 2 + 1] = (y * height as f64) as f32;
             }
@@ -510,7 +510,7 @@ fn analyse(target: &Target, pending: &[PendingFace], thumbnails_dir: &Path, cach
             let size_px = (shown[2] * original_width).max(shown[3] * original_height);
             let mut landmarks = [0f32; 10];
             for point in 0..5 {
-                let (x, y) = orient_point(detection.landmarks[point * 2] as f64, detection.landmarks[point * 2 + 1] as f64, back);
+                let (x, y) = orient_point(f64::from(detection.landmarks[point * 2]), f64::from(detection.landmarks[point * 2 + 1]), back);
                 landmarks[point * 2] = x as f32;
                 landmarks[point * 2 + 1] = y as f32;
             }
@@ -518,7 +518,7 @@ fn analyse(target: &Target, pending: &[PendingFace], thumbnails_dir: &Path, cach
             MeasuredFace {
                 rect: orient_rect(shown, back),
                 landmarks,
-                score: detection.score as f64,
+                score: f64::from(detection.score),
                 sharpness: sharpness(&rgb, width, height, detection.rect),
                 size_px,
                 size_percent: size_px / original_width.max(original_height) * 100.0,
@@ -576,12 +576,12 @@ fn pending_faces(conn: &Connection, photo_ids: &[i64]) -> HashMap<i64, Vec<Pendi
 const REVIEW_MATCH_SIMILARITY: f32 = 0.80;
 
 /// Enregistre les visages détectés d'une photo, fusionnés avec ceux déjà en base (spec §7.1) :
-/// - une détection qui correspond à un visage existant (recouvrement IoU ≥ 0,5 ; ressemblance ≥ 0,80 pour une photo « à revérifier ») en garde
+/// - une détection qui correspond à un visage existant (recouvrement `IoU` ≥ 0,5 ; ressemblance ≥ 0,80 pour une photo « à revérifier ») en garde
 ///   l'identité et l'état ; ce visage reçoit les mesures et l'empreinte. Les coordonnées des zones importées ou manuelles ne changent pas
 ///   (sauf sur une photo à revérifier, où l'ancienne position n'est plus valable) ;
 /// - les zones importées ou manuelles, et les visages confirmés ou ignorés, sont toujours conservés ;
 /// - les détections automatiques non confirmées sans correspondance sont remplacées ; les nouvelles détections arrivent « inconnues »
-///   (ou « filtrées » sous les seuils) et sont attribuées ensuite (face_recognize::attribute_faces).
+///   (ou « filtrées » sous les seuils) et sont attribuées ensuite (`face_recognize::attribute_faces`).
 ///
 /// Erreur de base : renvoyée (la transaction de l'appelant est alors annulée et la photo signalée en échec).
 fn store_detections(conn: &Connection, target: &Target, analysis: &Analysis, current: &FaceSettings) -> rusqlite::Result<()> {
@@ -620,7 +620,7 @@ fn store_detections(conn: &Connection, target: &Target, analysis: &Analysis, cur
             .filter_map(|candidate| {
                 if target.needs_review {
                     let similarity = crate::face_recognize::similarity(face.embedding.as_ref()?, candidate.embedding.as_ref()?);
-                    (similarity >= REVIEW_MATCH_SIMILARITY).then_some((candidate, similarity as f64))
+                    (similarity >= REVIEW_MATCH_SIMILARITY).then_some((candidate, f64::from(similarity)))
                 } else {
                     let overlap = iou(&candidate.rect, &face.rect);
                     (overlap >= MATCH_IOU).then_some((candidate, overlap))
@@ -674,7 +674,7 @@ fn store_detections(conn: &Connection, target: &Target, analysis: &Analysis, cur
             )?;
         }
     }
-    let now = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map(|duration| duration.as_secs() as i64).unwrap_or(0);
+    let now = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map_or(0, |duration| duration.as_secs() as i64);
     conn.execute(
         "INSERT OR REPLACE INTO photo_face_scans (photo_id, detector_id, model_id, scanned_at, file_mtime, width, height, orientation, needs_review)
          VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, 0)",
@@ -711,7 +711,7 @@ fn load_session(environment: &Environment, model: &Path, label: &str) -> Result<
 
 /// Détection et reconnaissance des visages d'une sélection (`photo_ids`) ou d'un dossier (`folder`, sous-dossiers selon `recursive`) ;
 /// `only_unscanned` : seulement les photos pas encore scannées avec le détecteur et le modèle actuels (ou « à revérifier »). Les visages sont
-/// ensuite attribués (spec §5.1). Tâche de la file : progression par « scan-progress », arrêt par cancel_scan (les photos déjà traitées restent
+/// ensuite attribués (spec §5.1). Tâche de la file : progression par « scan-progress », arrêt par `cancel_scan` (les photos déjà traitées restent
 /// enregistrées).
 #[tauri::command]
 pub async fn detect_faces(
@@ -744,7 +744,7 @@ pub async fn detect_faces(
         let detector = load_session(&environment, &paths.detector, "Modèle de détection")?;
         let recognizer = load_session(&environment, &paths.recognizer, "Modèle de reconnaissance")?;
         // Moitié des cœurs pour lire les miniatures (le reste pour l'interface) ; l'inférence, rapide, passe une photo à la fois.
-        let threads = std::thread::available_parallelism().map(|count| (count.get() / 2).max(1)).unwrap_or(2);
+        let threads = std::thread::available_parallelism().map_or(2, |count| (count.get() / 2).max(1));
         let pool_threads = rayon::ThreadPoolBuilder::new().num_threads(threads).build().map_err(|error| error.to_string())?;
         let current = settings();
         let total = targets.len();
@@ -757,7 +757,7 @@ pub async fn detect_faces(
                 chunk
                     .par_iter()
                     .map(|target| {
-                        let waiting = pending.get(&target.photo_id).map(Vec::as_slice).unwrap_or(&[]);
+                        let waiting = pending.get(&target.photo_id).map_or(&[][..], Vec::as_slice);
                         analyse(target, waiting, &thumbnails_dir, cache_size, &detector, &recognizer)
                     })
                     .collect()
@@ -765,7 +765,7 @@ pub async fn detect_faces(
             // Une transaction par photo : un échec d'enregistrement n'annule que cette photo, qui est signalée dans le rapport (jamais comptée scannée).
             for (target, result) in chunk.iter().zip(results) {
                 let stored = result.and_then(|analysis| {
-                    crate::faces::in_transaction(&conn, |conn| store_detections(conn, target, &analysis, &current)).map(|_| analysis)
+                    crate::faces::in_transaction(&conn, |conn| store_detections(conn, target, &analysis, &current)).map(|()| analysis)
                 });
                 match stored {
                     Ok(analysis) => {

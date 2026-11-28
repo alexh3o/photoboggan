@@ -1,10 +1,10 @@
-//! Files of the semantic search (SigLIP 2, spec dev_tools/Evolutions/feat semantic search SigLIP 2.md, §3): manifest, status, download,
+//! Files of the semantic search (`SigLIP` 2, spec `dev_tools/Evolutions/feat` semantic search `SigLIP` 2.md, §3): manifest, status, download,
 //! import from a folder, deletion.
 //!
 //! - Manifest `semantic_models.json` (prepared by scripts/prepare-semantic-models.mjs): one entry per model with its constants
 //!   (image size, embedding size, normalisation, tokens, logit scale / bias, prompt template) and its files (name, size, SHA-256).
 //!   v1 ships a single model, the first entry, which is the active one.
-//! - Files go to `<app data>/models/semantic/<model_id>/`. The ONNX Runtime library is the one of the faces (face_models.json), kept once
+//! - Files go to `<app data>/models/semantic/<model_id>/`. The ONNX Runtime library is the one of the faces (`face_models.json`), kept once
 //!   in `models/`: a semantic download installs it too when faces never did.
 //! - Downloads are refused in offline mode (`internet_allowed()`); import from a folder works without Internet.
 //! - Every command refuses with the key `semantic_disabled` until the interface has enabled the feature (`set_semantic_enabled`, sent at
@@ -55,7 +55,7 @@ pub struct ModelSpec {
     pub max_text_tokens: usize,
     /// Queries are lowercased before tokenisation.
     pub lowercase: bool,
-    /// Sigmoid probability of a match: sigmoid(cos × logit_scale + logit_bias) (scale already exponentiated).
+    /// Sigmoid probability of a match: sigmoid(cos × `logit_scale` + `logit_bias`) (scale already exponentiated).
     pub logit_scale: f32,
     pub logit_bias: f32,
     /// Template wrapped around short queries (`{}` = the query).
@@ -128,7 +128,7 @@ pub fn set_semantic_enabled(enabled: bool) {
 static CURRENT_DOWNLOAD: std::sync::Mutex<Option<std::sync::Arc<AtomicBool>>> = std::sync::Mutex::new(None);
 
 fn current_download() -> std::sync::MutexGuard<'static, Option<std::sync::Arc<AtomicBool>>> {
-    CURRENT_DOWNLOAD.lock().unwrap_or_else(|poisoned| poisoned.into_inner())
+    CURRENT_DOWNLOAD.lock().unwrap_or_else(std::sync::PoisonError::into_inner)
 }
 
 // ---------------------------------------------------------------------------
@@ -236,12 +236,12 @@ fn missing_files(models_dir: &Path, model: &'static ModelSpec) -> Result<Vec<Mis
 }
 
 /// Longest time to receive one file: the face limit (15 min) is too short for the 565 MB text model on a slow link, so allow at least
-/// 1 Mbit/s (128 KiB/s). A frozen connection still fails after 30 s without data (IDLE_TIMEOUT).
+/// 1 Mbit/s (128 KiB/s). A frozen connection still fails after 30 s without data (`IDLE_TIMEOUT`).
 fn body_timeout(size: u64) -> Duration {
     BODY_TIMEOUT.max(Duration::from_secs(size / (128 * 1024)))
 }
 
-/// Downloads the missing files from the GitHub release (queue task: progress through "scan-progress", stop through cancel_scan). The ONNX
+/// Downloads the missing files from the GitHub release (queue task: progress through "scan-progress", stop through `cancel_scan`). The ONNX
 /// Runtime library comes from the face release when it is missing. Files already complete are kept after a stop or an error.
 #[tauri::command]
 pub async fn download_semantic_model(app: tauri::AppHandle, state: State<'_, AppState>, task_id: String) -> Result<(), String> {

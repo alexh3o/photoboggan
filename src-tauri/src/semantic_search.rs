@@ -1,4 +1,4 @@
-//! Searches of the semantic search (spec dev_tools/Evolutions/feat semantic search SigLIP 2.md, §5.2, §7, §18): in-memory index of
+//! Searches of the semantic search (spec `dev_tools/Evolutions/feat` semantic search `SigLIP` 2.md, §5.2, §7, §18): in-memory index of
 //! the embeddings, text encoder, ranking, relative relevance threshold, idle release.
 //!
 //! - Index (§5.2): built on the first search from every embedding of the active model (fresh or not: a file whose metadata changed keeps
@@ -13,7 +13,7 @@
 //!   model deleted drop them too (a loaded model file could not be deleted on Windows).
 //! - Results: the best `MAX_RESULTS` photos of the scope, sorted by decreasing cosine (ties by photo id). The relevance slider of the
 //!   interface keeps `cos >= best − Δ` among them (`relevance_cut`): moving it needs no new search (§18).
-//! - Keyword suggestions (semantic_keywords.rs, §23) use this index and its cache: `Query::Examples` ranks by the mean cosine with the
+//! - Keyword suggestions (`semantic_keywords.rs`, §23) use this index and its cache: `Query::Examples` ranks by the mean cosine with the
 //!   nearest tagged photos, and the suggestion model of a photo is kept and released with the index.
 
 use rayon::prelude::*;
@@ -46,15 +46,15 @@ pub const EMPTY_QUERY_ERROR: &str = "semantic_empty_query";
 const ROWS_PER_BLOCK: usize = 2048;
 
 fn lock<T>(mutex: &Mutex<T>) -> MutexGuard<'_, T> {
-    mutex.lock().unwrap_or_else(|poisoned| poisoned.into_inner())
+    mutex.lock().unwrap_or_else(std::sync::PoisonError::into_inner)
 }
 
 fn read<T>(lock: &RwLock<T>) -> RwLockReadGuard<'_, T> {
-    lock.read().unwrap_or_else(|poisoned| poisoned.into_inner())
+    lock.read().unwrap_or_else(std::sync::PoisonError::into_inner)
 }
 
 fn write<T>(lock: &RwLock<T>) -> RwLockWriteGuard<'_, T> {
-    lock.write().unwrap_or_else(|poisoned| poisoned.into_inner())
+    lock.write().unwrap_or_else(std::sync::PoisonError::into_inner)
 }
 
 // ---------------------------------------------------------------------------
@@ -74,7 +74,7 @@ pub struct Index {
     stamps: Vec<Stamp>,
     /// Row of each photo (updates, query photo of an image search).
     rows: HashMap<i64, usize>,
-    /// Value of the cache generation the rows reflect (see SearchCache).
+    /// Value of the cache generation the rows reflect (see `SearchCache`).
     generation: u64,
     /// Unique per index object: with `generation`, tells whether row numbers kept elsewhere (keyword suggestions) still apply.
     epoch: u64,
@@ -133,17 +133,14 @@ impl Index {
 
     /// Adds the photo, or replaces its vector.
     fn set_halves(&mut self, photo_id: i64, stamp: Stamp, halves: impl Iterator<Item = u16>) {
-        match self.rows.get(&photo_id) {
-            Some(&row) => {
-                for (slot, half) in self.vectors[row * self.dim..(row + 1) * self.dim].iter_mut().zip(halves) { *slot = half; }
-                self.stamps[row] = stamp;
-            }
-            None => {
-                self.rows.insert(photo_id, self.ids.len());
-                self.ids.push(photo_id);
-                self.vectors.extend(halves.take(self.dim));
-                self.stamps.push(stamp);
-            }
+        if let Some(&row) = self.rows.get(&photo_id) {
+            for (slot, half) in self.vectors[row * self.dim..(row + 1) * self.dim].iter_mut().zip(halves) { *slot = half; }
+            self.stamps[row] = stamp;
+        } else {
+            self.rows.insert(photo_id, self.ids.len());
+            self.ids.push(photo_id);
+            self.vectors.extend(halves.take(self.dim));
+            self.stamps.push(stamp);
         }
     }
 
@@ -246,24 +243,24 @@ impl Index {
 /// consecutive additions, so the compiler can keep several multiply-adds in flight (and vectorise).
 fn dot_half(query: &[f32], row: &[u16]) -> f32 {
     let mut sums = [0f32; 8];
-    let mut query_chunks = query.chunks_exact(8);
-    let mut row_chunks = row.chunks_exact(8);
-    for (q, r) in (&mut query_chunks).zip(&mut row_chunks) {
+    let (query_chunks, query_rem) = query.as_chunks::<8>();
+    let (row_chunks, row_rem) = row.as_chunks::<8>();
+    for (q, r) in query_chunks.iter().zip(row_chunks) {
         for lane in 0..8 { sums[lane] += q[lane] * f16_to_f32(r[lane]); }
     }
-    let tail: f32 = query_chunks.remainder().iter().zip(row_chunks.remainder()).map(|(q, &r)| q * f16_to_f32(r)).sum();
+    let tail: f32 = query_rem.iter().zip(row_rem).map(|(q, &r)| q * f16_to_f32(r)).sum();
     sums.iter().sum::<f32>() + tail
 }
 
 /// Dot product of two float vectors (eight accumulators, as `dot_half`).
 pub fn dot_f32(a: &[f32], b: &[f32]) -> f32 {
     let mut sums = [0f32; 8];
-    let mut a_chunks = a.chunks_exact(8);
-    let mut b_chunks = b.chunks_exact(8);
-    for (x, y) in (&mut a_chunks).zip(&mut b_chunks) {
+    let (a_chunks, a_rem) = a.as_chunks::<8>();
+    let (b_chunks, b_rem) = b.as_chunks::<8>();
+    for (x, y) in a_chunks.iter().zip(b_chunks) {
         for lane in 0..8 { sums[lane] += x[lane] * y[lane]; }
     }
-    let tail: f32 = a_chunks.remainder().iter().zip(b_chunks.remainder()).map(|(x, y)| x * y).sum();
+    let tail: f32 = a_rem.iter().zip(b_rem).map(|(x, y)| x * y).sum();
     sums.iter().sum::<f32>() + tail
 }
 
@@ -314,9 +311,9 @@ pub fn relevance_cut(hits: &mut Vec<Hit>, delta: f32) {
     hits.truncate(kept);
 }
 
-/// Sigmoid probability of a text match: sigmoid(cos × logit_scale + logit_bias) (§2, constants of the manifest).
+/// Sigmoid probability of a text match: sigmoid(cos × `logit_scale` + `logit_bias`) (§2, constants of the manifest).
 pub fn probability(cos: f32, model: &ModelSpec) -> f32 {
-    let logit = cos as f64 * model.logit_scale as f64 + model.logit_bias as f64;
+    let logit = f64::from(cos) * f64::from(model.logit_scale) + f64::from(model.logit_bias);
     (1.0 / (1.0 + (-logit).exp())) as f32
 }
 
@@ -331,7 +328,7 @@ pub fn prepare_query(query: &str, model: &ModelSpec) -> Result<String, String> {
 
 /// ONNX Runtime threads of the text encoder: a query is interactive (~55 ms), but a few threads are enough for one sentence.
 fn text_threads() -> usize {
-    std::thread::available_parallelism().map_or(2, |count| count.get()).clamp(1, 4)
+    std::thread::available_parallelism().map_or(2, std::num::NonZero::get).clamp(1, 4)
 }
 
 /// Loads the text encoder of the installed model (errors: `semantic_disabled`, `semantic_model_missing`, `semantic_unsupported_platform`).
@@ -369,7 +366,7 @@ pub struct SearchCache {
     /// Text encoder, loaded by the first text query. Held for the whole encoding of a query, so a release waits for it to end and the
     /// model file is really closed when `release` returns.
     text: Mutex<Option<TextEncoder>>,
-    /// Tagged rows of each keyword, for the suggestions of a photo (semantic_keywords.rs): built by the first request, released with the
+    /// Tagged rows of each keyword, for the suggestions of a photo (`semantic_keywords.rs)`: built by the first request, released with the
     /// index. Taken while the index is read (lock order: `index`, then `suggestions`).
     suggestions: Mutex<Option<crate::semantic_keywords::SuggestionModel>>,
 }
@@ -574,13 +571,13 @@ pub struct SearchScope {
 pub struct SearchResults {
     /// Cosine of the first result (None: no photo of the scope has an embedding).
     pub best: Option<f32>,
-    /// Sorted by decreasing cosine, at most MAX_RESULTS, cut at `best − relevance` when a relevance was given.
+    /// Sorted by decreasing cosine, at most `MAX_RESULTS`, cut at `best − relevance` when a relevance was given.
     pub results: Vec<Hit>,
-    /// More photos than MAX_RESULTS were scored.
+    /// More photos than `MAX_RESULTS` were scored.
     pub capped: bool,
     /// Photos of the scope.
     pub total: usize,
-    /// Photos of the scope an analysis would handle (same count as `pending` of get_semantic_stats for the same scope and `skipRaw`).
+    /// Photos of the scope an analysis would handle (same count as `pending` of `get_semantic_stats` for the same scope and `skipRaw`).
     pub pending: usize,
 }
 
@@ -696,7 +693,7 @@ pub fn search_excluding(
     let total = photos.len();
     let mut results = ranking.hits;
     if let Query::Vector(_) = query {
-        for hit in results.iter_mut() { hit.prob = Some(probability(hit.cos, model)); }
+        for hit in &mut results { hit.prob = Some(probability(hit.cos, model)); }
     }
     if let Some(delta) = relevance.filter(|delta| delta.is_finite()) { relevance_cut(&mut results, delta); }
     Ok(SearchResults { best: ranking.best, results, capped: ranking.capped, total, pending })

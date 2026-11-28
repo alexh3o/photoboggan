@@ -1,4 +1,4 @@
-//! Tests des zones privées (private_maps.rs) : géométrie des zones et des tuiles, fichiers MBTiles, règle par tuile, import, refus hors ligne.
+//! Tests des zones privées (`private_maps.rs`) : géométrie des zones et des tuiles, fichiers `MBTiles`, règle par tuile, import, refus hors ligne.
 //! Aucune requête réseau : les téléchargements sont testés avec Internet refusé (réglage par défaut tant que l'interface ne l'a pas envoyé).
 
 use super::*;
@@ -265,7 +265,7 @@ fn style_resources_prefer_the_downloaded_copy_over_the_bundled_one() {
         std::fs::write(root.join("styles").join("dark.json"), text).unwrap();
     }
     std::fs::write(bundled.join("styles").join("liberty.json"), "embarque seul").unwrap();
-    let parts = |text: &[&str]| text.iter().map(|part| part.to_string()).collect::<Vec<_>>();
+    let parts = |text: &[&str]| text.iter().map(std::string::ToString::to_string).collect::<Vec<_>>();
 
     // Copie téléchargée présente : elle l'emporte ; absente d'un fichier : le style embarqué le fournit.
     assert_eq!(style_resource(&downloaded, Some(&bundled), &parts(&["styles", "dark.json"])).unwrap(), b"telecharge");
@@ -278,7 +278,7 @@ fn style_resources_prefer_the_downloaded_copy_over_the_bundled_one() {
     assert_eq!(style_resource(&downloaded, None, &parts(&["styles", "dark.json"])), None);
 }
 
-/// Fichier MBTiles de test : une tuile vide par (zoom, x, y) donné.
+/// Fichier `MBTiles` de test : une tuile vide par (zoom, x, y) donné.
 fn mbtiles_with(path: &Path, max_zoom: u8, tiles: &[(u8, u32, u32)]) {
     let conn = create_mbtiles(path, "Forme", max_zoom).unwrap();
     for (z, x, y) in tiles {

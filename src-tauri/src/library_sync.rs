@@ -64,13 +64,12 @@ pub fn modified_millis(metadata: &fs::Metadata) -> i64 {
         .modified()
         .ok()
         .and_then(|time| time.duration_since(UNIX_EPOCH).ok())
-        .map(|duration| duration.as_millis() as i64)
-        .unwrap_or(0)
+        .map_or(0, |duration| duration.as_millis() as i64)
 }
 
 /// Current time in milliseconds since 1970 (same clock as the interface's `Date.now()`).
 pub fn now_millis() -> i64 {
-    std::time::SystemTime::now().duration_since(UNIX_EPOCH).map(|duration| duration.as_millis() as i64).unwrap_or(0)
+    std::time::SystemTime::now().duration_since(UNIX_EPOCH).map_or(0, |duration| duration.as_millis() as i64)
 }
 
 /// Effective modification date (ms) of an image: the later of `image_modified` (its own mtime, 0 if unknown) and the mtime of the sidecar it
@@ -79,8 +78,7 @@ pub fn now_millis() -> i64 {
 pub fn effective_modified_millis(image: &Path, image_modified: i64) -> i64 {
     let sidecar_modified = crate::exif::active_sidecar(image)
         .and_then(|sidecar| fs::metadata(sidecar).ok())
-        .map(|metadata| modified_millis(&metadata))
-        .unwrap_or(0);
+        .map_or(0, |metadata| modified_millis(&metadata));
     image_modified.max(sidecar_modified)
 }
 
@@ -124,7 +122,7 @@ fn store_dates(conn: &rusqlite::Connection, items: &[(String, i64)], scanned_at:
             // File creation date (ms), 0 when the file system cannot tell: kept as is in that case (used by privacy.rs for undated photos).
             let created = std::fs::metadata(path).and_then(|metadata| metadata.created()).ok()
                 .and_then(|time| time.duration_since(std::time::UNIX_EPOCH).ok())
-                .map(|duration| duration.as_millis() as i64).unwrap_or(0);
+                .map_or(0, |duration| duration.as_millis() as i64);
             // `modified` stays the image's own mtime; the sidecar's date only enters `effective_modified`.
             let effective = effective_modified_millis(Path::new(path), *modified);
             update.execute(params![modified, scanned_at, path, created, effective])?;
@@ -165,9 +163,9 @@ pub fn store_read_batch(
 ) -> Result<(), String> {
     let stored = crate::insert_batch(conn, photos)
         .map_err(|error| format!("photos not stored: {error}"))
-        .and_then(|_| if crate::keywords::store_photo_keywords(conn, keyword_batches) { Ok(()) } else { Err("keywords not stored".to_string()) })
-        .and_then(|_| if crate::faces::store_photo_faces(conn, face_batches) { Ok(()) } else { Err("faces not stored".to_string()) })
-        .and_then(|_| store_read_dates(conn, modified).map_err(|error| format!("modification dates not stored: {error}")));
+        .and_then(|()| if crate::keywords::store_photo_keywords(conn, keyword_batches) { Ok(()) } else { Err("keywords not stored".to_string()) })
+        .and_then(|()| if crate::faces::store_photo_faces(conn, face_batches) { Ok(()) } else { Err("faces not stored".to_string()) })
+        .and_then(|()| store_read_dates(conn, modified).map_err(|error| format!("modification dates not stored: {error}")));
     if let Err(error) = &stored {
         let marked = conn.unchecked_transaction().and_then(|tx| {
             for photo in photos { tx.execute("UPDATE photos SET file_size = -1 WHERE path = ?1", params![photo.path])?; }
@@ -198,11 +196,10 @@ pub fn is_photo_file(path: &Path) -> bool {
     // Les vidéos (video.rs) sont cataloguées comme les photos : même scan, même synchronisation incrémentale.
     crate::video::is_video_path(path) || path.extension()
         .and_then(|ext| ext.to_str())
-        .map(|ext| {
+        .is_some_and(|ext| {
             let ext_lower = ext.to_ascii_lowercase();
             SUPPORTED_EXTENSIONS.contains(&ext_lower.as_str()) || crate::thumbnails::is_raw_extension(&ext_lower)
         })
-        .unwrap_or(false)
 }
 
 /// Photo relue depuis son fichier, avec les chemins de ses mots-clés hiérarchiques et ses visages (enregistrés à part, voir keywords.rs et faces.rs).

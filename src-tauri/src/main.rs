@@ -74,22 +74,22 @@ impl AppDataPaths {
 
 impl AppState {
     pub fn pool(&self) -> DbPool {
-        self.db_pool.read().unwrap_or_else(|poisoned| poisoned.into_inner()).clone()
+        self.db_pool.read().unwrap_or_else(std::sync::PoisonError::into_inner).clone()
     }
     pub fn base_dir(&self) -> PathBuf {
-        self.paths.read().unwrap_or_else(|poisoned| poisoned.into_inner()).base_dir.clone()
+        self.paths.read().unwrap_or_else(std::sync::PoisonError::into_inner).base_dir.clone()
     }
     pub fn thumbnails_dir(&self) -> PathBuf {
-        self.paths.read().unwrap_or_else(|poisoned| poisoned.into_inner()).thumbnails_dir.clone()
+        self.paths.read().unwrap_or_else(std::sync::PoisonError::into_inner).thumbnails_dir.clone()
     }
     pub fn raw_previews_dir(&self) -> PathBuf {
-        self.paths.read().unwrap_or_else(|poisoned| poisoned.into_inner()).raw_previews_dir.clone()
+        self.paths.read().unwrap_or_else(std::sync::PoisonError::into_inner).raw_previews_dir.clone()
     }
     pub fn is_custom(&self) -> bool {
-        self.paths.read().unwrap_or_else(|poisoned| poisoned.into_inner()).is_custom
+        self.paths.read().unwrap_or_else(std::sync::PoisonError::into_inner).is_custom
     }
     pub fn thumbnail_cache_size(&self) -> usize {
-        *self.thumbnail_cache_size.read().unwrap_or_else(|poisoned| poisoned.into_inner()) as usize
+        *self.thumbnail_cache_size.read().unwrap_or_else(std::sync::PoisonError::into_inner) as usize
     }
 }
 
@@ -126,12 +126,12 @@ struct AppConfig {
     privacy_sets: Vec<privacy::PrivacySet>,
     custom_data_dir: Option<String>,
     thumbnail_cache_size: Option<u32>,
-    /// Thumbnail JPEG quality: "normal" or "high" (see set_thumbnail_quality). Kept here so it applies from startup,
+    /// Thumbnail JPEG quality: "normal" or "high" (see `set_thumbnail_quality`). Kept here so it applies from startup,
     /// before the frontend sends anything. None or unknown: normal.
     #[serde(default)]
     thumbnail_quality: Option<String>,
     window_state: Option<WindowStateConfig>, // persistance dans config.json
-    /// Programs "Open with" may launch (see open_with). None: list not set up yet (first start after the update, see register_existing_programs).
+    /// Programs "Open with" may launch (see `open_with`). None: list not set up yet (first start after the update, see `register_existing_programs`).
     #[serde(default)]
     open_with_programs: Option<Vec<String>>,
 }
@@ -152,7 +152,7 @@ fn load_config(app: &tauri::AppHandle) -> Result<AppConfig, String> {
 }
 
 /// Config au démarrage : un config.json invalide est mis de côté (`config.json.invalid-<date>`, jamais supprimé) et l'application démarre avec
-/// les réglages par défaut. Les écritures de config ultérieures refusent de partir d'un fichier invalide (voir load_config).
+/// les réglages par défaut. Les écritures de config ultérieures refusent de partir d'un fichier invalide (voir `load_config`).
 fn load_config_at_startup(app: &tauri::AppHandle) -> AppConfig {
     match load_config(app) {
         Ok(config) => config,
@@ -175,7 +175,7 @@ static TEMP_FILE_COUNTER: std::sync::atomic::AtomicU64 = std::sync::atomic::Atom
 
 /// Atomic write: unique temporary file flushed to disk then renamed, never a half-written config.json.
 fn save_config(app: &tauri::AppHandle, config: &AppConfig) -> Result<(), String> {
-    let _guard = CONFIG_LOCK.lock().unwrap_or_else(|poisoned| poisoned.into_inner());
+    let _guard = CONFIG_LOCK.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
     let path = config_file_path(app)?;
     let json = serde_json::to_string_pretty(config).map_err(|e| e.to_string())?;
     let temp = path.with_file_name(format!(
@@ -183,7 +183,7 @@ fn save_config(app: &tauri::AppHandle, config: &AppConfig) -> Result<(), String>
         std::process::id(),
         TEMP_FILE_COUNTER.fetch_add(1, Ordering::Relaxed)
     ));
-    if let Err(error) = fs::write(&temp, json).and_then(|_| flush_to_disk(&temp)) {
+    if let Err(error) = fs::write(&temp, json).and_then(|()| flush_to_disk(&temp)) {
         let _ = fs::remove_file(&temp);
         return Err(error.to_string());
     }
@@ -199,9 +199,8 @@ fn save_config(app: &tauri::AppHandle, config: &AppConfig) -> Result<(), String>
 ///Fonctions de restauration, Bounds Check et sauvegarde
 /// Vérifie si le rectangle de la fenêtre intersecte la zone visible d'au moins un écran actif.
 fn check_window_visibility(window: &tauri::WebviewWindow, saved: &WindowStateConfig) -> bool {
-    let monitors = match window.available_monitors() {
-        Ok(m) => m,
-        Err(_) => return false,
+    let Ok(monitors) = window.available_monitors() else {
+        return false;
     };
 
     if monitors.is_empty() {
@@ -368,7 +367,7 @@ fn thumbnail_cache_file(thumbnails_dir: &Path, source_path: &str) -> Result<Path
     // Version du format de l'aperçu : à changer quand son contenu change (orientation EXIF réécrite en v2), pour que les anciens aperçus soient régénérés.
     const PREVIEW_VERSION: [u8; 1] = [2];
     for byte in source_path.as_bytes().iter().chain(size_bytes.iter()).chain(modified_bytes.iter()).chain(PREVIEW_VERSION.iter()) {
-        hash ^= *byte as u64;
+        hash ^= u64::from(*byte);
         hash = hash.wrapping_mul(0x100000001b3);
     }
     // Le cache est réparti en 256 sous-dossiers selon les 2 premiers caractères du nom (octet de poids fort du hash, bien réparti) : un dossier unique
@@ -382,7 +381,7 @@ fn thumbnail_cache_file(thumbnails_dir: &Path, source_path: &str) -> Result<Path
 fn cache_files(dir: &Path) -> Vec<PathBuf> {
     WalkDir::new(dir).min_depth(1).max_depth(2).into_iter().flatten()
         .filter(|entry| entry.file_type().is_file())
-        .map(|entry| entry.into_path())
+        .map(walkdir::DirEntry::into_path)
         .collect()
 }
 
@@ -408,7 +407,7 @@ fn decode_thumbnail_base64(encoded: &str) -> Result<Vec<u8>, String> {
             b'=' => break,
             _ => return Err("Données de miniature base64 invalides".into()),
         };
-        accumulator = (accumulator << 6) | value as u32;
+        accumulator = (accumulator << 6) | u32::from(value);
         bits += 6;
         if bits >= 8 {
             bits -= 8;
@@ -451,7 +450,7 @@ static THUMBNAIL_GENERATION_GATE: tokio::sync::Semaphore = tokio::sync::Semaphor
 
 #[tauri::command]
 async fn generate_thumbnail(state: State<'_, AppState>, source_path: String, max_side: Option<u32>) -> Result<GeneratedThumbnail, String> {
-    let max_side = max_side.map(|s| s as usize).unwrap_or_else(|| state.thumbnail_cache_size());
+    let max_side = max_side.map_or_else(|| state.thumbnail_cache_size(), |s| s as usize);
     let thumbnails_dir = state.thumbnails_dir();
     let _permit = THUMBNAIL_GENERATION_GATE.acquire().await.map_err(|error| error.to_string())?;
     tokio::task::spawn_blocking(move || {
@@ -657,7 +656,7 @@ const THUMBNAIL_CACHE_SIZES: [u32; 3] = [512, 768, 1024];
 
 /// Cache size of a new installation: `thumbnailCacheSize` of src/defaults.jsonc, the file that also feeds the frontend. Both sides must
 /// agree, since the grid caps the display size with it and the setter is only called when the user changes the value. 512 if the value is
-/// missing or not one of THUMBNAIL_CACHE_SIZES.
+/// missing or not one of `THUMBNAIL_CACHE_SIZES`.
 fn default_thumbnail_cache_size() -> u32 {
     const DEFAULTS_FILE: &str = include_str!("../../src/defaults.jsonc");
     // Same parsing rule as the frontend (settings-defaults.js) and face_detect.rs: full-line `//` comments are dropped.
@@ -757,7 +756,7 @@ fn scan_cancel_flags() -> &'static Mutex<HashMap<String, CancelEntry>> {
 }
 
 pub(crate) fn scan_cancel_flag(task_id: &str) -> Arc<AtomicBool> {
-    let mut flags = scan_cancel_flags().lock().unwrap_or_else(|poisoned| poisoned.into_inner());
+    let mut flags = scan_cancel_flags().lock().unwrap_or_else(std::sync::PoisonError::into_inner);
     // Entrées orphelines (arrêt demandé alors que la tâche était déjà terminée : personne ne les retire) : supprimées après 10 minutes.
     flags.retain(|_, entry| Arc::strong_count(&entry.flag) > 1 || entry.created.elapsed() < Duration::from_secs(600));
     flags.entry(task_id.to_string()).or_insert_with(|| CancelEntry { flag: Arc::new(AtomicBool::new(false)), created: Instant::now() }).flag.clone()
@@ -766,11 +765,11 @@ pub(crate) fn scan_cancel_flag(task_id: &str) -> Arc<AtomicBool> {
 /// Nombre de tâches de la file en cours (scan, rescan, intégrité, copie, déplacement, écriture de mots-clés, détection de visages, téléchargement
 /// des modèles) : chacune garde un clone de son drapeau d'arrêt. Une entrée orpheline (arrêt demandé après la fin d'une tâche) n'en a pas.
 fn running_tasks() -> usize {
-    scan_cancel_flags().lock().unwrap_or_else(|poisoned| poisoned.into_inner()).values().filter(|entry| Arc::strong_count(&entry.flag) > 1).count()
+    scan_cancel_flags().lock().unwrap_or_else(std::sync::PoisonError::into_inner).values().filter(|entry| Arc::strong_count(&entry.flag) > 1).count()
 }
 
 pub(crate) fn release_scan_cancel_flag(task_id: &str) {
-    scan_cancel_flags().lock().unwrap_or_else(|poisoned| poisoned.into_inner()).remove(task_id);
+    scan_cancel_flags().lock().unwrap_or_else(std::sync::PoisonError::into_inner).remove(task_id);
 }
 
 // Arrête un scan ou une relecture en cours : le parcours cesse et les photos déjà lues restent dans le catalogue.
@@ -850,7 +849,7 @@ async fn run_scan(app: tauri::AppHandle, pool: DbPool, scan_path: String, scan_m
         let entries: Vec<_> = WalkDir::new(scan_path)
             .into_iter()
             .take_while(|_| !cancel.load(Ordering::Relaxed) && !writer_gone.load(Ordering::Relaxed))
-            .filter_map(|e| e.ok())
+            .filter_map(std::result::Result::ok)
             .filter(|e| !e.file_type().is_dir() && library_sync::is_photo_file(e.path()))
             .collect();
 
@@ -1244,7 +1243,7 @@ fn get_folder_counts(state: State<'_, AppState>) -> std::collections::HashMap<St
     let pool = state.pool();
     db::get_folder_counts(&pool).unwrap_or_else(|error| {
         eprintln!("Folder counts unavailable: {error}");
-        Default::default()
+        std::collections::HashMap::new()
     })
 }
 
@@ -1303,7 +1302,7 @@ struct WrittenDate {
 
 /// Note, couleur et/ou fanion pick d'un lot de photos, en une commande (directe, ou tâche de la file avec `task_id` : progression et arrêt).
 /// Seules les valeurs fournies sont modifiées : écrire la note ne touche pas au xmp:Label (qui peut contenir une valeur non reconnue par
-/// l'application), ni au fanion pick, et inversement. Les écritures sur une même image sont sérialisées par exiftool::path_lock.
+/// l'application), ni au fanion pick, et inversement. Les écritures sur une même image sont sérialisées par `exiftool::path_lock`.
 #[tauri::command]
 async fn update_photos_marking(
     app: tauri::AppHandle,
@@ -1387,7 +1386,7 @@ fn mark_photo_for_resync(pool: &DbPool, id: i64) {
 }
 
 /// Marquage d'une photo : fichier (ou sidecar), puis base. `label` et `pick` déjà vérifiés ; `color_flag` : valeur enregistrée en base.
-/// La miniature et l'aperçu en cache suivent le fichier réécrit (keep_cached_images).
+/// La miniature et l'aperçu en cache suivent le fichier réécrit (`keep_cached_images`).
 /// Returns the new `effective_modified` (None: nothing to write). `modified` stays the image file's own mtime, even when only a sidecar was written.
 #[allow(clippy::too_many_arguments)]
 fn write_photo_marking_with(
@@ -1462,7 +1461,7 @@ fn write_photo_marking(
     write_photo_marking_with(pool, dirs, id, path, rating, label, pick, color_flag, exif::write_xmp_metadata)
 }
 
-/// Photo turned by `rotate_photos`: its new `view_fix` (see orientation::Resolved), which the interface applies to the original it shows.
+/// Photo turned by `rotate_photos`: its new `view_fix` (see `orientation::Resolved`), which the interface applies to the original it shows.
 #[derive(serde::Serialize)]
 struct RotatedPhoto {
     id: i64,
@@ -1846,14 +1845,14 @@ fn rename_folder(state: State<'_, AppState>, path: String, new_name: String) -> 
             .prepare("SELECT path FROM photos WHERE lower(substr(replace(path, char(92), '/'), 1, length(?1))) = lower(?1)")
             .map_err(|error| error.to_string())?;
         let rows = statement.query_map(params![prefix], |row| row.get::<_, String>(0)).map_err(|error| error.to_string())?;
-        rows.filter_map(|row| row.ok()).collect()
+        rows.filter_map(std::result::Result::ok).collect()
     };
     // Nouveau chemin de chaque photo : le dernier niveau du dossier est remplacé dans le chemin tel qu'enregistré (séparateurs et casse du reste conservés).
     let renamed: Vec<MovedFile> = photo_paths.into_iter().filter_map(|old| {
         let chars: Vec<char> = old.chars().collect();
         let folder_part: String = chars[..prefix_len.min(chars.len())].iter().collect();
         let separator = folder_part.chars().last()?;
-        let head = folder_part[..folder_part.trim_end_matches(['/', '\\']).rfind(['/', '\\'])? + 1].to_string();
+        let head = folder_part[..=folder_part.trim_end_matches(['/', '\\']).rfind(['/', '\\'])?].to_string();
         let rest: String = chars[prefix_len.min(chars.len())..].iter().collect();
         Some(MovedFile { to: format!("{head}{new_name}{separator}{rest}"), from: old })
     }).collect();
@@ -2044,7 +2043,7 @@ fn has_trash_for_root(root: &WindowsRoot) -> bool {
                 cbSize: std::mem::size_of::<SHQUERYRBINFO>() as u32,
                 ..Default::default()
             };
-            unsafe { SHQueryRecycleBinW(PCWSTR(wide.as_ptr()), &mut info) }.is_ok()
+            unsafe { SHQueryRecycleBinW(PCWSTR(wide.as_ptr()), &raw mut info) }.is_ok()
         }
     }
 }
@@ -2054,8 +2053,7 @@ pub(crate) fn has_trash(path: &str) -> bool {
     let root = match windows_root(path) {
         WindowsRoot::Other => std::env::current_dir()
             .ok()
-            .map(|cwd| windows_root(&cwd.join(path).to_string_lossy()))
-            .unwrap_or(WindowsRoot::Other),
+            .map_or(WindowsRoot::Other, |cwd| windows_root(&cwd.join(path).to_string_lossy())),
         other => other,
     };
     has_trash_for_root(&root)
@@ -2129,7 +2127,7 @@ fn trash_strict_on_sta(shell_path: &Path) -> Result<(), String> {
                 .map_err(|error| format!("Mise à la corbeille impossible : {error}"))
                 .and_then(|()| {
                     let perform = file_op.PerformOperations();
-                    let aborted = file_op.GetAnyOperationsAborted().map(|b| b.as_bool()).unwrap_or(false);
+                    let aborted = file_op.GetAnyOperationsAborted().is_ok_and(windows_core::BOOL::as_bool);
                     if rejected_permanent.load(Ordering::SeqCst) {
                         return Err(format!(
                             "La corbeille n'est pas disponible pour « {} » (corbeille désactivée ou fichier trop volumineux) : suppression annulée",
@@ -2206,14 +2204,13 @@ fn count_permanent_deletions(paths: Vec<String>) -> usize {
     {
         let mut cache: std::collections::HashMap<String, bool> = std::collections::HashMap::new();
         let cwd = std::env::current_dir().ok();
-        return paths
+        paths
             .iter()
             .filter(|path| {
                 let root = match windows_root(path) {
                     WindowsRoot::Other => cwd
                         .as_ref()
-                        .map(|dir| windows_root(&dir.join(path).to_string_lossy()))
-                        .unwrap_or(WindowsRoot::Other),
+                        .map_or(WindowsRoot::Other, |dir| windows_root(&dir.join(path).to_string_lossy())),
                     other => other,
                 };
                 match root {
@@ -2227,7 +2224,7 @@ fn count_permanent_deletions(paths: Vec<String>) -> usize {
                     }
                 }
             })
-            .count();
+            .count()
     }
     #[cfg(not(windows))]
     {
@@ -2242,7 +2239,7 @@ fn is_folder_empty(state: State<'_, AppState>, path: String) -> Result<bool, Str
     let pool = state.pool();
     let folder = resolve_tracked_folder(&pool, &path).ok_or_else(|| format!("Dossier non suivi : {path}"))?;
     if !folder.is_dir() { return Err(format!("Dossier introuvable : {path}")); }
-    let has_content = WalkDir::new(&folder).into_iter().filter_map(|e| e.ok()).any(|entry| {
+    let has_content = WalkDir::new(&folder).into_iter().filter_map(std::result::Result::ok).any(|entry| {
         if entry.file_type().is_dir() { return false; }
         let name = entry.file_name().to_string_lossy().to_ascii_lowercase();
         !matches!(name.as_str(), "thumbs.db" | "desktop.ini" | ".ds_store")
@@ -2258,7 +2255,7 @@ fn get_folder_unrecognized_files(state: State<'_, AppState>, path: String) -> Re
     let folder = resolve_tracked_folder(&pool, &path).ok_or_else(|| format!("Dossier non suivi : {path}"))?;
     if !folder.is_dir() { return Err(format!("Dossier introuvable : {path}")); }
     let mut unrecognized = Vec::new();
-    for entry in WalkDir::new(&folder).into_iter().filter_map(|e| e.ok()) {
+    for entry in WalkDir::new(&folder).into_iter().filter_map(std::result::Result::ok) {
         if !entry.file_type().is_file() {
             continue;
         }
@@ -2278,9 +2275,7 @@ fn get_folder_unrecognized_files(state: State<'_, AppState>, path: String) -> Re
             continue;
         }
         // Fichier non géré : on conserve le chemin relatif par rapport au dossier pour un affichage lisible
-        let rel_path = entry_path.strip_prefix(&folder)
-            .map(|p| p.to_string_lossy().to_string())
-            .unwrap_or_else(|_| file_name.to_string());
+        let rel_path = entry_path.strip_prefix(&folder).map_or_else(|_| file_name.to_string(), |p| p.to_string_lossy().to_string());
         unrecognized.push(rel_path);
     }
     unrecognized.sort();
@@ -2321,7 +2316,7 @@ fn delete_folder(state: State<'_, AppState>, path: String) -> Result<Vec<String>
         let rows = statement
             .query_map(params![prefix], |row| row.get::<_, String>(0))
             .map_err(|error| error.to_string())?;
-        rows.filter_map(|row| row.ok()).collect()
+        rows.filter_map(std::result::Result::ok).collect()
     };
 
     // Les noms des caches dépendent de la taille et de la date des fichiers : à calculer avant la mise à la corbeille.
@@ -2347,7 +2342,7 @@ fn delete_folder(state: State<'_, AppState>, path: String) -> Result<Vec<String>
 // Un disque externe débranché ou un partage réseau coupé n'est donc jamais pris pour une suppression de photos.
 fn tracked_root_is_reachable(root: &str) -> bool {
     let root = Path::new(root);
-    root.is_dir() || root.parent().is_some_and(|parent| parent.is_dir())
+    root.is_dir() || root.parent().is_some_and(std::path::Path::is_dir)
 }
 
 pub(crate) fn is_inside_folder(folder: &str, path: &str) -> bool {
@@ -2383,7 +2378,7 @@ fn remove_missing_photos(state: State<'_, AppState>, paths: Vec<String>) -> Resu
 fn log_temp_leftovers(base_dir: &Path, items: &[String], total: usize) -> Option<String> {
     if items.is_empty() { return None; }
     static LOGGED: std::sync::Mutex<Option<(Vec<String>, Option<String>)>> = std::sync::Mutex::new(None);
-    let mut guard = LOGGED.lock().unwrap_or_else(|poisoned| poisoned.into_inner());
+    let mut guard = LOGGED.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
     if let Some((prev_items, prev_log)) = guard.as_ref() {
         if prev_items == items {
             return prev_log.clone();
@@ -2449,7 +2444,7 @@ fn sidecar_already_taken(candidate: &Path) -> Option<PathBuf> {
     (compatible.exists() && !has_same_stem_sibling(candidate).unwrap_or(false)).then_some(compatible)
 }
 
-/// Name reserved by reserve_destination, and the sidecar that made the first choices unusable (to report: the photo gets another name).
+/// Name reserved by `reserve_destination`, and the sidecar that made the first choices unusable (to report: the photo gets another name).
 pub(crate) struct Reserved {
     pub path: PathBuf,
     pub skipped_sidecar: Option<PathBuf>,
@@ -2545,7 +2540,7 @@ pub(crate) fn copy_sidecar(source: &Path, target: &Path, overwrite: bool) -> std
 }
 
 pub(crate) fn lowercase_segments(path: &Path) -> Vec<String> {
-    path_segments(&path.to_string_lossy()).into_iter().map(|segment| segment.to_lowercase()).collect()
+    path_segments(&path.to_string_lossy()).into_iter().map(str::to_lowercase).collect()
 }
 
 // Vérification des déplacements entre disques (Paramètres > Stockage) : activée par défaut, l'interface envoie le choix mémorisé au démarrage.
@@ -2702,7 +2697,7 @@ pub(crate) fn copy_atomically_to_reserved_verified(
     let temp = temp_sibling_path(reserved_target);
     let result = copy_durably(source, &temp)
         .and_then(|_| verify(source, &temp))
-        .and_then(|_| fs::rename(&temp, reserved_target));
+        .and_then(|()| fs::rename(&temp, reserved_target));
     if result.is_err() {
         remove_copied_target(&temp);
         remove_copied_target(reserved_target);
@@ -2994,7 +2989,7 @@ struct FileTaskProgress {
 impl FileTaskProgress {
     fn new(app: tauri::AppHandle, task_id: Option<String>, sources: &[String]) -> Self {
         // Un fichier vide ou illisible compte pour 1 octet : l'avancement progresse tout de même.
-        let total = sources.iter().map(|path| fs::metadata(path).map(|metadata| metadata.len()).unwrap_or(0).max(1)).sum::<u64>().max(1);
+        let total = sources.iter().map(|path| fs::metadata(path).map_or(0, |metadata| metadata.len()).max(1)).sum::<u64>().max(1);
         let cancel = task_id.as_deref().map(scan_cancel_flag);
         Self { app, task_id, cancel, total, done: 0 }
     }
@@ -3054,7 +3049,7 @@ fn move_photos(app: tauri::AppHandle, state: State<'_, AppState>, paths: Vec<Str
 
     for path in paths {
         if progress.cancelled() { break; } // arrêt demandé : les fichiers suivants restent où ils sont
-        let file_size = fs::metadata(&path).map(|metadata| metadata.len()).unwrap_or(0);
+        let file_size = fs::metadata(&path).map_or(0, |metadata| metadata.len());
         'file: {
             let tracked: bool = conn
                 .query_row("SELECT EXISTS(SELECT 1 FROM photos WHERE path = ?)", params![path], |row| row.get(0))
@@ -3109,8 +3104,7 @@ fn move_photos(app: tauri::AppHandle, state: State<'_, AppState>, paths: Vec<Str
 
             let new_name = target.file_name().map(|name| name.to_string_lossy().into_owned()).unwrap_or_default();
             let (size, modified) = fs::metadata(&target)
-                .map(|metadata| (metadata.len() as i64, library_sync::modified_millis(&metadata)))
-                .unwrap_or((0, 0));
+                .map_or((0, 0), |metadata| (metadata.len() as i64, library_sync::modified_millis(&metadata)));
             let updated = conn.unchecked_transaction().and_then(|tx| {
                 tx.execute("DELETE FROM photos WHERE path = ?", params![new_path])?;
                 tx.execute(
@@ -3146,7 +3140,7 @@ pub(crate) fn find_copy_conflicts(paths: &[String], destination: &Path) -> Vec<C
         if same_existing_file(source, &target) {
             return None;
         }
-        let (source_meta, target_meta) = (fs::metadata(source).ok()?, fs::metadata(&target).ok().filter(|meta| meta.is_file())?);
+        let (source_meta, target_meta) = (fs::metadata(source).ok()?, fs::metadata(&target).ok().filter(std::fs::Metadata::is_file)?);
         Some(CopyConflict {
             path: path.clone(),
             name: file_name.to_string_lossy().into_owned(),
@@ -3240,13 +3234,13 @@ fn copy_photos_with_progress(
     for path in paths {
         if progress.cancelled() { break; }
         let source = Path::new(&path);
-        let file_size = fs::metadata(source).map(|metadata| metadata.len()).unwrap_or(0);
+        let file_size = fs::metadata(source).map_or(0, |metadata| metadata.len());
         match source.file_name() {
             None => failed.push(FileFailure { path: path.clone(), error: "Nom de fichier invalide".into() }),
             Some(file_name) => {
                 let exact = destination.join(file_name);
                 let same_folder = source.parent().is_some_and(|parent| lowercase_segments(parent) == destination_segments);
-                let choice = if exact.is_file() && !same_folder { resolutions.get(&path).map(String::as_str).unwrap_or("rename") } else { "rename" };
+                let choice = if exact.is_file() && !same_folder { resolutions.get(&path).map_or("rename", String::as_str) } else { "rename" };
                 if choice == "skip" {
                     skipped += 1;
                 } else if choice == "replace" {
@@ -3351,7 +3345,7 @@ fn is_allowed_program(app: &tauri::AppHandle, program: &str) -> bool {
 }
 
 fn allow_programs(app: &tauri::AppHandle, programs: &[String], only_first_time: bool) -> Result<(), String> {
-    let _guard = PROGRAMS_CONFIG_LOCK.lock().unwrap_or_else(|poisoned| poisoned.into_inner());
+    let _guard = PROGRAMS_CONFIG_LOCK.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
     let mut config = load_config(app)?;
     if only_first_time && config.open_with_programs.is_some() { return Ok(()); }
     let list = config.open_with_programs.get_or_insert_with(Vec::new);
@@ -3361,7 +3355,7 @@ fn allow_programs(app: &tauri::AppHandle, programs: &[String], only_first_time: 
     save_config(app, &config)
 }
 
-/// OS dialog to choose a program, opened by the backend: the chosen program is allowed for open_with. None if the user cancels.
+/// OS dialog to choose a program, opened by the backend: the chosen program is allowed for `open_with`. None if the user cancels.
 #[tauri::command(async)]
 fn pick_program(app: tauri::AppHandle, title: String, filter_name: String) -> Result<Option<String>, String> {
     use tauri_plugin_dialog::DialogExt;
@@ -3417,14 +3411,14 @@ pub(crate) fn write_timestamped_log(logs_dir: &Path, prefix: &str, text: &str, n
                 log.sync_all()?;
                 return Ok(path);
             }
-            Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => continue,
+            Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => {}
             Err(error) => return Err(error),
         }
     }
     Err(std::io::Error::new(std::io::ErrorKind::AlreadyExists, "too many logs with the same name"))
 }
 
-/// Photo moved or copied under another name because a sidecar not its own was already at the destination (see reserve_destination).
+/// Photo moved or copied under another name because a sidecar not its own was already at the destination (see `reserve_destination`).
 #[derive(serde::Serialize)]
 pub(crate) struct SidecarRename {
     pub path: String,
@@ -3452,7 +3446,7 @@ pub(crate) fn log_sidecar_renames(base_dir: &Path, operation: &str, renames: &[S
     }
 }
 
-/// Recoveries after failed ExifTool writes (see exiftool::recover_after_failure), reported once a write operation is over.
+/// Recoveries after failed `ExifTool` writes (see `exiftool::recover_after_failure`), reported once a write operation is over.
 #[derive(serde::Serialize)]
 struct WriteRecoveryReport {
     entries: Vec<exiftool::Recovery>,
@@ -3926,13 +3920,13 @@ fn move_file_or_copy(src: &Path, dst: &Path) -> std::io::Result<()> {
     Ok(())
 }
 
-/// Application data files and folders, in the storage folder. `models`: face detection and content search models (face_models.rs),
-/// kept with the data so they are not downloaded again. `private_maps`: tiles and style of the private map zones (private_maps.rs).
-/// `logs`: write-recovery and sidecar-conflict logs (they may name the only copy of a photo left by ExifTool: never left behind).
+/// Application data files and folders, in the storage folder. `models`: face detection and content search models (`face_models.rs`),
+/// kept with the data so they are not downloaded again. `private_maps`: tiles and style of the private map zones (`private_maps.rs`).
+/// `logs`: write-recovery and sidecar-conflict logs (they may name the only copy of a photo left by `ExifTool`: never left behind).
 const STORAGE_FILES: [&str; 3] = ["photos_library.db", "photos_library.db-wal", "photos_library.db-shm"];
 const STORAGE_DIRS: [&str; 6] = ["thumbnails", "raw_previews", "models", "person_covers", "private_maps", "logs"];
 
-/// `durable`: each copy is flushed to the disk (see copy_durably), for data that cannot be rebuilt once the old location is removed.
+/// `durable`: each copy is flushed to the disk (see `copy_durably`), for data that cannot be rebuilt once the old location is removed.
 fn copy_dir_recursive(src: &Path, dst: &Path, durable: bool) -> std::io::Result<()> {
     fs::create_dir_all(dst)?;
     for entry in fs::read_dir(src)? {
@@ -3976,7 +3970,7 @@ fn copy_storage(pool: &DbPool, from: &Path, to: &Path) -> Result<(), String> {
         for name in ["photos_library.db", "photos_library.db-wal"] {
             let source = from.join(name);
             // Le journal WAL est vide après le point de contrôle : il n'est copié que s'il contient quelque chose. Le fichier -shm se reconstruit seul.
-            let empty_wal = name.ends_with("-wal") && fs::metadata(&source).map(|metadata| metadata.len() == 0).unwrap_or(true);
+            let empty_wal = name.ends_with("-wal") && fs::metadata(&source).map_or(true, |metadata| metadata.len() == 0);
             if !source.is_file() || empty_wal { continue; }
             copy_durably(&source, &to.join(name)).map_err(|error| format!("Erreur lors de la copie de {name} : {error}"))?;
         }
@@ -4044,7 +4038,7 @@ fn change_storage_location(
     }
     // Le verrou d'écriture du pool est tenu pendant toute la copie et la bascule : une commande qui démarre maintenant attend, puis prend le nouveau
     // pool, au lieu d'écrire dans l'ancienne base. Une tâche déjà en cours (scan, synchronisation, écriture…) garderait l'ancienne base : refusé.
-    let mut pool_guard = state.db_pool.write().unwrap_or_else(|poisoned| poisoned.into_inner());
+    let mut pool_guard = state.db_pool.write().unwrap_or_else(std::sync::PoisonError::into_inner);
     if running_tasks() > 0 || library_sync::is_running() {
         return Err("Une tâche est en cours (scan, synchronisation, écriture des métadonnées, copie, détection des visages…) : attendez sa fin ou arrêtez-la, puis réessayez".into());
     }
@@ -4070,7 +4064,7 @@ fn change_storage_location(
     // 3. Bascule de l'état de l'application.
     let is_custom = new_path.is_some() && target_dir != default_dir;
     let new_paths = AppDataPaths::from_base(target_dir.clone(), is_custom);
-    let mut paths_guard = state.paths.write().unwrap_or_else(|poisoned| poisoned.into_inner());
+    let mut paths_guard = state.paths.write().unwrap_or_else(std::sync::PoisonError::into_inner);
     let old_pool = std::mem::replace(&mut *pool_guard, new_pool);
     let old_paths = std::mem::replace(&mut *paths_guard, new_paths);
 

@@ -1,5 +1,5 @@
 //! Regression tests of the lossless rotation (orientation.rs): orientation arithmetic, which tag wins at reading, internal XMP writing.
-//! Synthetic files only; the ExifTool path is covered by the ignored tests of exiftool.rs.
+//! Synthetic files only; the `ExifTool` path is covered by the ignored tests of exiftool.rs.
 
 use super::*;
 use crate::thumbnails::apply_orientation;

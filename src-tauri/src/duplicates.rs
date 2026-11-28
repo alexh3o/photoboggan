@@ -1,7 +1,7 @@
 //! Duplicate detection, "identical images" part (command `find_duplicates`).
 //!
 //! Two images are identical when their *image data* is identical, whatever their metadata. For JPEG, PNG and WebP the hashed bytes are the ones that
-//! describe the pixels (JPEG: every segment except APPn / COM, then the scan; PNG: IHDR, PLTE, tRNS, IDAT and animation chunks; WebP: bitstream, alpha
+//! describe the pixels (JPEG: every segment except `APPn` / COM, then the scan; PNG: IHDR, PLTE, tRNS, IDAT and animation chunks; WebP: bitstream, alpha
 //! and animation chunks). Other formats (HEIC, AVIF, GIF, BMP, RAW...) are hashed whole: their copies with diverging metadata are not recognised.
 //! RAW files are never modified by the application (metadata goes to a `.xmp` sidecar), so hashing them whole is exact.
 //!
@@ -114,7 +114,7 @@ pub struct Report {
     pub whole_file_extensions: Vec<String>,
     pub cancelled: bool,
     pub elapsed_millis: u64,
-    /// Sample of unreadable/corrupt files encountered during this run (up to MAX_REPORTED_FAILURES).
+    /// Sample of unreadable/corrupt files encountered during this run (up to `MAX_REPORTED_FAILURES`).
     pub failures: Vec<HashFailure>,
     pub failures_total: usize,
     /// Log file path when failures were recorded.
@@ -185,7 +185,7 @@ pub(crate) fn write_failure_log(base_dir: &Path, prefix: &str, failures: &[HashF
                 }
                 return Some(target.to_string_lossy().into_owned());
             }
-            Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => continue,
+            Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => {}
             Err(error) => {
                 eprintln!("Failure log not created: {error}");
                 return None;
@@ -249,7 +249,7 @@ fn read_u8(reader: &mut impl Read) -> Option<u8> {
     Some(byte[0])
 }
 
-/// JPEG: the segments that are not metadata (everything but APPn and COM, except APP14 "Adobe" which sets the colour transform), then the scan up to EOI.
+/// JPEG: the segments that are not metadata (everything but `APPn` and COM, except APP14 "Adobe" which sets the colour transform), then the scan up to EOI.
 fn jpeg_ranges<R: Read + Seek>(reader: &mut R, size: u64) -> Option<Ranges> {
     let (mut ranges, scan_start) = jpeg_header(reader, size)?;
     let end = jpeg_end(reader, size)?;
@@ -290,7 +290,7 @@ fn jpeg_header<R: Read + Seek>(file: &mut R, size: u64) -> Option<(Ranges, u64)>
         }
         let mut length = [0u8; 2];
         reader.read_exact(&mut length).ok()?;
-        let segment_length = u16::from_be_bytes(length) as u64;
+        let segment_length = u64::from(u16::from_be_bytes(length));
         if segment_length < 2 || pos + segment_length > size {
             return None;
         }
@@ -331,7 +331,7 @@ fn png_ranges(file: &mut File, size: u64) -> Option<Ranges> {
     loop {
         let mut head = [0u8; 8];
         reader.read_exact(&mut head).ok()?;
-        let length = u32::from_be_bytes([head[0], head[1], head[2], head[3]]) as u64;
+        let length = u64::from(u32::from_be_bytes([head[0], head[1], head[2], head[3]]));
         let kind: [u8; 4] = [head[4], head[5], head[6], head[7]];
         let total = length + 12; // length, type, data, CRC
         if pos + total > size {
@@ -366,7 +366,7 @@ fn webp_ranges(file: &mut File, size: u64) -> Option<Ranges> {
     while pos + 8 <= size {
         let mut chunk = [0u8; 8];
         reader.read_exact(&mut chunk).ok()?;
-        let length = u32::from_le_bytes([chunk[4], chunk[5], chunk[6], chunk[7]]) as u64;
+        let length = u64::from(u32::from_le_bytes([chunk[4], chunk[5], chunk[6], chunk[7]]));
         let padded = length + (length & 1);
         let total = 8 + padded;
         if pos + total > size {
@@ -546,7 +546,7 @@ pub(crate) fn remember_prepass(
              version = excluded.version, size = excluded.size, modified = excluded.modified, data_len = excluded.data_len,
              tolerant = excluded.tolerant",
     )?
-    .execute(params![photo_id, mode, LAYOUT_VERSION, size as i64, modified, data_len as i64, tolerant as i64])?;
+    .execute(params![photo_id, mode, LAYOUT_VERSION, size as i64, modified, data_len as i64, i64::from(tolerant)])?;
     conn.prepare_cached("DELETE FROM photo_hash_failures WHERE photo_id = ?1 AND mode = ?2")?
         .execute(params![photo_id, mode])?;
     Ok(())
@@ -599,7 +599,7 @@ pub(crate) fn remember_data_hash(conn: &Connection, photo_id: i64, data: &DataHa
              version = excluded.version, size = excluded.size, modified = excluded.modified, data_len = excluded.data_len,
              tolerant = excluded.tolerant, full_hash = excluded.full_hash",
     )?
-    .execute(params![photo_id, LAYOUT_VERSION, data.size as i64, data.modified, data.data_len as i64, data.tolerant as i64, data.hash.as_slice()])?;
+    .execute(params![photo_id, LAYOUT_VERSION, data.size as i64, data.modified, data.data_len as i64, i64::from(data.tolerant), data.hash.as_slice()])?;
     conn.prepare_cached("DELETE FROM photo_hash_failures WHERE photo_id = ?1 AND mode = 1")?
         .execute(params![photo_id])?;
     Ok(())
@@ -693,9 +693,9 @@ fn save_dirty_and_failures(
                 entry.size as i64,
                 entry.modified,
                 entry.data_len as i64,
-                entry.tolerant as i64,
-                entry.partial.as_ref().map(|hash| hash.as_slice()),
-                entry.full.as_ref().map(|hash| hash.as_slice()),
+                i64::from(entry.tolerant),
+                entry.partial.as_ref().map(<[u8; 16]>::as_slice),
+                entry.full.as_ref().map(<[u8; 16]>::as_slice),
             ])
             .map_err(|e| e.to_string())?;
             clear_fail.execute(params![entry.id, mode]).map_err(|e| e.to_string())?;
@@ -916,7 +916,7 @@ fn fill_hashes(
 /// Finds groups of identical images (tests and simple callers).
 #[cfg_attr(not(test), allow(dead_code))]
 pub fn run(pool: &DbPool, request: &Request, cancel: &AtomicBool, progress: &(dyn Fn(f64) + Sync)) -> Result<Report, String> {
-    run_with_options(pool, None, request, cancel, &|rich| progress(rich.percent as f64 / 100.0))
+    run_with_options(pool, None, request, cancel, &|rich| progress(f64::from(rich.percent) / 100.0))
 }
 
 /// Finds groups of identical images with chunked commits, low-priority workers, foreground pauses, rich progress, and failure logging.
@@ -929,7 +929,7 @@ pub fn run_with_options(
 ) -> Result<Report, String> {
     let started = Instant::now();
     let conn = pool.get().map_err(|e| e.to_string())?;
-    let mode: i64 = if request.ignore_metadata { 1 } else { 0 };
+    let mode: i64 = i64::from(request.ignore_metadata);
     // Rows of photos removed from the catalog are useless (identifiers are never reused).
     conn.execute_batch(
         "DELETE FROM photo_hashes WHERE photo_id NOT IN (SELECT id FROM photos);

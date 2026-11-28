@@ -20,29 +20,29 @@ pub struct ExifMetadata {
     pub keywords: String,
     // Mots-clés hiérarchiques actifs lus dans le fichier : un chemin par mot-clé (ex. ["Lieux", "France", "Paris"]), voir parse_hierarchical_keywords.
     pub keyword_paths: Vec<Vec<String>>,
-    /// Titre retenu : la première source non vide dans l'ordre de priorité réglé (voir TITLE_SOURCE_IDS).
+    /// Titre retenu : la première source non vide dans l'ordre de priorité réglé (voir `TITLE_SOURCE_IDS`).
     pub title: String,
-    /// Description retenue (colonne `caption` de la base) : la première source non vide dans l'ordre de priorité réglé (voir DESCRIPTION_SOURCE_IDS).
+    /// Description retenue (colonne `caption` de la base) : la première source non vide dans l'ordre de priorité réglé (voir `DESCRIPTION_SOURCE_IDS`).
     pub caption: String,
     /// Valeur de chaque source de titre et de description, utile à la vérification après écriture.
     pub text_sources: TextSources,
-    /// Note de chaque source (en étoiles, 0 à 5), dans l'ordre de RATING_SOURCE_IDS.
+    /// Note de chaque source (en étoiles, 0 à 5), dans l'ordre de `RATING_SOURCE_IDS`.
     pub rating_sources: [Option<i32>; 5],
-    /// Couleur de chaque source (clé de couleur), dans l'ordre de COLOR_SOURCE_IDS.
+    /// Couleur de chaque source (clé de couleur), dans l'ordre de `COLOR_SOURCE_IDS`.
     pub color_sources: [Option<&'static str>; 3],
-    /// Fanion pick retenu (clé de PICK_FLAGS) : la première source présente dans l'ordre de priorité réglé (voir PICK_SOURCE_IDS).
+    /// Fanion pick retenu (clé de `PICK_FLAGS`) : la première source présente dans l'ordre de priorité réglé (voir `PICK_SOURCE_IDS`).
     pub pick_flag: String,
-    /// Fanion pick de chaque source, dans l'ordre de PICK_SOURCE_IDS (None : propriété absente ; « none » : valeur explicite « aucun fanion »).
+    /// Fanion pick de chaque source, dans l'ordre de `PICK_SOURCE_IDS` (None : propriété absente ; « none » : valeur explicite « aucun fanion »).
     pub pick_sources: [Option<&'static str>; 3],
     /// Coordonnées GPS retenues (latitude, longitude en degrés décimaux) : la première source valide dans l'ordre de priorité réglé
-    /// (voir GPS_SOURCE_IDS). Lues seulement : l'application ne les écrit jamais.
+    /// (voir `GPS_SOURCE_IDS`). Lues seulement : l'application ne les écrit jamais.
     pub gps: Option<(f64, f64)>,
-    /// Coordonnées de chaque source, dans l'ordre de GPS_SOURCE_IDS.
+    /// Coordonnées de chaque source, dans l'ordre de `GPS_SOURCE_IDS`.
     pub gps_sources: [Option<(f64, f64)>; 2],
     /// Flash déclenché (Some(true)), non déclenché (Some(false)) ou information absente (None) : tag EXIF Flash (bit 0), sinon XMP exif:Fired.
     pub flash: Option<bool>,
     /// Auteur, copyright, crédit, conditions d'utilisation et e-mail de l'auteur retenus : la première source non vide dans l'ordre de priorité réglé
-    /// (voir AUTHOR_SOURCE_IDS et les listes voisines).
+    /// (voir `AUTHOR_SOURCE_IDS` et les listes voisines).
     pub rights: Rights,
     /// Valeur de chaque source de ces cinq champs, utile à la vérification après écriture.
     pub rights_sources: RightsSources,
@@ -102,7 +102,7 @@ impl JpegSegment {
 }
 
 /// Segments de l'en-tête d'un JPEG, jusqu'au début des données image (SOS) ou à la fin du fichier (EOI). Les octets de remplissage 0xFF et
-/// les marqueurs sans contenu (TEM, RSTn) sont sautés. Une structure illisible arrête le parcours et lève `malformed`.
+/// les marqueurs sans contenu (TEM, `RSTn`) sont sautés. Une structure illisible arrête le parcours et lève `malformed`.
 pub(crate) struct JpegSegments<'a> {
     data: &'a [u8],
     pos: usize,
@@ -186,14 +186,14 @@ pub(crate) fn read_xmp_orientation(path: &Path) -> Option<u32> {
     read_sidecar(path).as_deref().and_then(xmp_orientation)
 }
 
-/// Champs lus dans les segments d'un JPEG : IPTC (mots-clés 2:25, titre ObjectName 2:05, description Caption 2:120) et commentaire JPEG (COM).
+/// Champs lus dans les segments d'un JPEG : IPTC (mots-clés 2:25, titre `ObjectName` 2:05, description Caption 2:120) et commentaire JPEG (COM).
 #[derive(Default)]
 struct JpegFields {
     keywords: Vec<String>,
     object_name: Option<String>,
     caption: Option<String>,
     comment: Option<String>,
-    /// IPTC By-line (2:80, répétable), CopyrightNotice (2:116) et Credit (2:110).
+    /// IPTC By-line (2:80, répétable), `CopyrightNotice` (2:116) et Credit (2:110).
     by_lines: Vec<String>,
     copyright: Option<String>,
     credit: Option<String>,
@@ -261,17 +261,17 @@ fn read_jpeg_fields(path: &Path) -> JpegFields {
 /// Contenu XMP utile d'un fichier (paquet intégré, puis sidecar pour ce qui manque).
 #[derive(Default)]
 struct ParsedXmp {
-    /// Sources XMP de la note, dans l'ordre de RATING_SOURCE_IDS (les trois premières).
+    /// Sources XMP de la note, dans l'ordre de `RATING_SOURCE_IDS` (les trois premières).
     ratings: [Option<i32>; 3],
-    /// Sources XMP de la couleur, dans l'ordre de COLOR_SOURCE_IDS.
+    /// Sources XMP de la couleur, dans l'ordre de `COLOR_SOURCE_IDS`.
     colors: [Option<&'static str>; 3],
-    /// Sources XMP du fanion pick, dans l'ordre de PICK_SOURCE_IDS.
+    /// Sources XMP du fanion pick, dans l'ordre de `PICK_SOURCE_IDS`.
     picks: [Option<&'static str>; 3],
     keywords: String,
     keyword_paths: Vec<Vec<String>>,
-    /// Sources XMP du titre, dans l'ordre de TITLE_SOURCE_IDS (les deux premières).
+    /// Sources XMP du titre, dans l'ordre de `TITLE_SOURCE_IDS` (les deux premières).
     titles: [Option<String>; 2],
-    /// Sources XMP de la description, dans l'ordre de DESCRIPTION_SOURCE_IDS (les quatre premières).
+    /// Sources XMP de la description, dans l'ordre de `DESCRIPTION_SOURCE_IDS` (les quatre premières).
     descriptions: [Option<String>; 4],
     /// Coordonnées GPS XMP (exif:GPSLatitude / exif:GPSLongitude).
     gps: Option<(f64, f64)>,
@@ -281,7 +281,7 @@ struct ParsedXmp {
     face_regions: Option<Vec<crate::faces::FaceRegion>>,
     /// XMP `tiff:Orientation` (see orientation.rs): embedded packet first, then sidecar.
     orientation: Option<u32>,
-    /// Sources XMP de l'auteur et des droits (les autres emplacements des tableaux sont remplis par read_exif).
+    /// Sources XMP de l'auteur et des droits (les autres emplacements des tableaux sont remplis par `read_exif`).
     rights: RightsSources,
     /// Structure XMP `Iptc4xmpCore:CreatorContactInfo` (paquet intégré, sinon sidecar).
     contact: Option<ContactInfo>,
@@ -446,20 +446,20 @@ fn xmp_gps(xml: &str) -> Option<(f64, f64)> {
 // l'emporte. Toutes sont écrites (voir write_metadata et exiftool.rs).
 // ---------------------------------------------------------------------------
 
-/// Sources du titre (identifiants côté interface), ordre par défaut : XMP dc:title, XMP acdsee:caption, IPTC ObjectName, EXIF XPTitle.
+/// Sources du titre (identifiants côté interface), ordre par défaut : XMP dc:title, XMP acdsee:caption, IPTC `ObjectName`, EXIF `XPTitle`.
 pub const TITLE_SOURCE_IDS: [&str; 4] = ["xmp-dc", "xmp-acdsee", "iptc", "exif-xp"];
 /// Sources de la description, ordre par défaut : XMP dc:description, exif:UserComment, tiff:ImageDescription, acdsee:notes, commentaire JPEG,
-/// EXIF ImageDescription, EXIF UserComment, EXIF XPComment, IPTC Caption.
+/// EXIF `ImageDescription`, EXIF `UserComment`, EXIF `XPComment`, IPTC Caption.
 pub const DESCRIPTION_SOURCE_IDS: [&str; 9] = ["xmp-dc", "xmp-exif", "xmp-tiff", "xmp-acdsee", "jpeg-comment", "exif-image", "exif-user-comment", "exif-xp", "iptc"];
 const XMP_TITLE_PROPERTIES: [&str; 2] = ["dc:title", "acdsee:caption"];
 const XMP_DESCRIPTION_PROPERTIES: [&str; 4] = ["dc:description", "exif:UserComment", "tiff:ImageDescription", "acdsee:notes"];
-/// Sources de la note, ordre par défaut : XMP xmp:Rating, MicrosoftPhoto:Rating, acdsee:rating, EXIF Rating, EXIF RatingPercent.
+/// Sources de la note, ordre par défaut : XMP xmp:Rating, MicrosoftPhoto:Rating, acdsee:rating, EXIF Rating, EXIF `RatingPercent`.
 pub const RATING_SOURCE_IDS: [&str; 5] = ["xmp", "microsoft", "acdsee", "exif", "exif-percent"];
 /// Sources de la couleur, ordre par défaut : XMP xmp:Label, digiKam:ColorLabel, photoshop:Urgency.
 pub const COLOR_SOURCE_IDS: [&str; 3] = ["xmp-label", "digikam", "urgency"];
 /// Sources du fanion pick, ordre par défaut : digiKam:PickLabel, xmpDM:pick (Lightroom), xmpDM:good.
 pub const PICK_SOURCE_IDS: [&str; 3] = ["digikam", "xmpdm-pick", "xmpdm-good"];
-/// Sources des coordonnées GPS (les identifiants ne donnent pas l'ordre de priorité) : EXIF (GPSLatitude / GPSLongitude), XMP exif:GPSLatitude /
+/// Sources des coordonnées GPS (les identifiants ne donnent pas l'ordre de priorité) : EXIF (`GPSLatitude` / `GPSLongitude`), XMP exif:GPSLatitude /
 /// exif:GPSLongitude (intégré, puis sidecar). Ordre par défaut : XMP avant EXIF, seul le XMP étant écrit par tous les chemins d'écriture
 /// (mode Carte) ; une position écrite en XMP est ainsi toujours relue, même si l'EXIF du fichier en contient une autre.
 pub const GPS_SOURCE_IDS: [&str; 2] = ["exif", "xmp"];
@@ -470,7 +470,7 @@ static PICK_PRIORITY: std::sync::RwLock<[usize; 3]> = std::sync::RwLock::new([0,
 static TITLE_PRIORITY: std::sync::RwLock<[usize; 4]> = std::sync::RwLock::new([0, 1, 2, 3]);
 static DESCRIPTION_PRIORITY: std::sync::RwLock<[usize; 9]> = std::sync::RwLock::new([0, 1, 2, 3, 4, 5, 6, 7, 8]);
 
-/// Valeur de chaque source, dans l'ordre de TITLE_SOURCE_IDS et DESCRIPTION_SOURCE_IDS (None : absente ou vide).
+/// Valeur de chaque source, dans l'ordre de `TITLE_SOURCE_IDS` et `DESCRIPTION_SOURCE_IDS` (None : absente ou vide).
 #[derive(Default, Clone, Debug)]
 pub struct TextSources {
     pub title: [Option<String>; 4],
@@ -484,13 +484,13 @@ pub struct TextSources {
 
 /// Sources de l'auteur, ordre par défaut : XMP dc:creator, XMP tiff:Artist, IPTC By-line, EXIF Artist.
 pub const AUTHOR_SOURCE_IDS: [&str; 4] = ["xmp-dc", "xmp-tiff", "iptc", "exif"];
-/// Sources de la mention de copyright, ordre par défaut : XMP dc:rights, XMP tiff:Copyright, IPTC CopyrightNotice, EXIF Copyright.
+/// Sources de la mention de copyright, ordre par défaut : XMP dc:rights, XMP tiff:Copyright, IPTC `CopyrightNotice`, EXIF Copyright.
 pub const COPYRIGHT_SOURCE_IDS: [&str; 4] = ["xmp-dc", "xmp-tiff", "iptc", "exif"];
 /// Sources du crédit, ordre par défaut : XMP photoshop:Credit, IPTC Credit.
 pub const CREDIT_SOURCE_IDS: [&str; 2] = ["xmp-photoshop", "iptc"];
 /// Source des conditions d'utilisation : XMP xmpRights:UsageTerms.
 pub const USAGE_TERMS_SOURCE_IDS: [&str; 1] = ["xmp-rights"];
-/// Source de l'e-mail de l'auteur : XMP Iptc4xmpCore:CreatorContactInfo / CiEmailWork.
+/// Source de l'e-mail de l'auteur : XMP Iptc4xmpCore:CreatorContactInfo / `CiEmailWork`.
 pub const AUTHOR_EMAIL_SOURCE_IDS: [&str; 1] = ["xmp-iptc-core"];
 static AUTHOR_PRIORITY: std::sync::RwLock<[usize; 4]> = std::sync::RwLock::new([0, 1, 2, 3]);
 static COPYRIGHT_PRIORITY: std::sync::RwLock<[usize; 4]> = std::sync::RwLock::new([0, 1, 2, 3]);
@@ -523,13 +523,13 @@ pub struct RightsSources {
 /// et réécrite pour que les autres champs (adresse, téléphone, site web) ne soient jamais perdus.
 #[derive(Default, Clone, Debug, PartialEq)]
 pub struct ContactInfo {
-    /// CiAdrExtadr, CiAdrCity, CiAdrRegion, CiAdrPcode, CiAdrCtry.
+    /// `CiAdrExtadr`, `CiAdrCity`, `CiAdrRegion`, `CiAdrPcode`, `CiAdrCtry`.
     pub address: String,
     pub city: String,
     pub region: String,
     pub postal_code: String,
     pub country: String,
-    /// CiTelWork, CiEmailWork, CiUrlWork.
+    /// `CiTelWork`, `CiEmailWork`, `CiUrlWork`.
     pub phone: String,
     pub email: String,
     pub url: String,
@@ -565,7 +565,7 @@ fn xmp_struct_body<'a>(xml: &'a str, local_name: &str) -> Option<&'a str> {
         while prefix_start > 0 && (bytes[prefix_start - 1].is_ascii_alphanumeric() || bytes[prefix_start - 1] == b'_' || bytes[prefix_start - 1] == b'-') { prefix_start -= 1; }
         if prefix_start == colon || prefix_start == 0 || bytes[prefix_start - 1] != b'<' { continue; }
         match bytes.get(name_end) {
-            Some(b'>') | Some(b'/') => {}
+            Some(b'>' | b'/') => {}
             Some(next) if next.is_ascii_whitespace() => {}
             _ => continue,
         }
@@ -606,7 +606,7 @@ fn xml_local_value(body: &str, local_name: &str) -> Option<String> {
         if lead != b'<' { continue; }
         // Élément : le nom doit se terminer là (pas « CiEmailWorkX »).
         match rest.chars().next() {
-            Some('>') | Some('/') => {}
+            Some('>' | '/') => {}
             Some(next) if next.is_ascii_whitespace() => {}
             _ => continue,
         }
@@ -648,12 +648,12 @@ pub(crate) fn order_indices<const N: usize>(ids: &[&str; N], order: &[String]) -
 }
 
 /// Règle l'ordre de priorité à la lecture d'un type de métadonnée (`kind` : « keywords », « title », « description », « rating », « color »,
-/// « pick », « gps », « faces », « author », « copyright », « credit », « usageTerms » ou « authorEmail ») : `order` liste une fois chacun des identifiants de ses sources (HIERARCHY_IDS, TITLE_SOURCE_IDS, DESCRIPTION_SOURCE_IDS,
-/// AUTHOR_SOURCE_IDS, COPYRIGHT_SOURCE_IDS, CREDIT_SOURCE_IDS, USAGE_TERMS_SOURCE_IDS, AUTHOR_EMAIL_SOURCE_IDS,
-/// RATING_SOURCE_IDS, COLOR_SOURCE_IDS, PICK_SOURCE_IDS, GPS_SOURCE_IDS, faces::REGION_SOURCE_IDS), du plus au moins prioritaire. Il s'applique aux prochaines lectures de fichiers (scan, relecture, synchronisation).
+/// « pick », « gps », « faces », « author », « copyright », « credit », « usageTerms » ou « authorEmail ») : `order` liste une fois chacun des identifiants de ses sources (`HIERARCHY_IDS`, `TITLE_SOURCE_IDS`, `DESCRIPTION_SOURCE_IDS`,
+/// `AUTHOR_SOURCE_IDS`, `COPYRIGHT_SOURCE_IDS`, `CREDIT_SOURCE_IDS`, `USAGE_TERMS_SOURCE_IDS`, `AUTHOR_EMAIL_SOURCE_IDS`,
+/// `RATING_SOURCE_IDS`, `COLOR_SOURCE_IDS`, `PICK_SOURCE_IDS`, `GPS_SOURCE_IDS`, `faces::REGION_SOURCE_IDS`), du plus au moins prioritaire. Il s'applique aux prochaines lectures de fichiers (scan, relecture, synchronisation).
 pub fn set_read_priority(kind: &str, order: &[String]) -> Result<(), String> {
     fn store<T>(lock: &std::sync::RwLock<T>, value: T) {
-        *lock.write().unwrap_or_else(|poisoned| poisoned.into_inner()) = value;
+        *lock.write().unwrap_or_else(std::sync::PoisonError::into_inner) = value;
     }
     match kind {
         "keywords" => store(&HIERARCHY_PRIORITY, order_indices(&HIERARCHY_IDS, order)?),
@@ -692,7 +692,7 @@ pub(crate) fn clean_title(text: &str) -> Option<String> {
     clean_text(&text.replace(['\r', '\n'], " "))
 }
 
-/// Descriptions par défaut d'appareils photo, sans intérêt : ignorées dans EXIF ImageDescription.
+/// Descriptions par défaut d'appareils photo, sans intérêt : ignorées dans EXIF `ImageDescription`.
 const CAMERA_DEFAULT_DESCRIPTIONS: [&str; 6] = ["OLYMPUS DIGITAL CAMERA", "SONY DSC", "DIGITAL CAMERA", "KONICA MINOLTA DIGITAL CAMERA", "MINOLTA DIGITAL CAMERA", "SAMSUNG DIGITAL CAMERA"];
 
 pub(crate) fn clean_exif_description(text: &str) -> Option<String> {
@@ -739,18 +739,17 @@ fn xmp_text(xml: &str, qualified_name: &str) -> Option<String> {
     clean_text(&decode_xml_entities(&body[..end]))
 }
 
-/// Champ EXIF « XP » de Windows (XPTitle, XPComment, XPKeywords) : UTF-16 little-endian terminé par un zéro, en type Byte ou Undefined.
+/// Champ EXIF « XP » de Windows (`XPTitle`, `XPComment`, `XPKeywords`) : UTF-16 little-endian terminé par un zéro, en type Byte ou Undefined.
 fn exif_xp_text(field: &exif::Field) -> Option<String> {
     let bytes = match &field.value {
-        Value::Byte(bytes) => bytes,
-        Value::Undefined(bytes, _) => bytes,
+        Value::Byte(bytes) | Value::Undefined(bytes, _) => bytes,
         _ => return None,
     };
     let units: Vec<u16> = bytes.as_chunks::<2>().0.iter().map(|pair| u16::from_le_bytes([pair[0], pair[1]])).take_while(|unit| *unit != 0).collect();
     Some(String::from_utf16_lossy(&units))
 }
 
-/// EXIF UserComment : 8 octets de jeu de caractères (« ASCII », « UNICODE » = UTF-16 dans l'ordre d'octets du fichier, zéros = non précisé)
+/// EXIF `UserComment` : 8 octets de jeu de caractères (« ASCII », « UNICODE » = UTF-16 dans l'ordre d'octets du fichier, zéros = non précisé)
 /// puis le texte.
 fn exif_user_comment(field: &exif::Field, little_endian: bool) -> Option<String> {
     let Value::Undefined(bytes, _) = &field.value else { return None; };
@@ -810,7 +809,7 @@ fn stars_from_percent(percent: i32) -> i32 {
     }
 }
 
-/// Couleur d'un numéro digiKam ColorLabel ou Photoshop Urgency (même table qu'à l'écriture, voir color_to_urgency_and_digikam) ; 0 = aucune.
+/// Couleur d'un numéro digiKam `ColorLabel` ou Photoshop Urgency (même table qu'à l'écriture, voir `color_to_urgency_and_digikam`) ; 0 = aucune.
 fn color_from_number(number: i32) -> Option<&'static str> {
     match number {
         1 => Some("red"),
@@ -826,7 +825,7 @@ fn color_from_number(number: i32) -> Option<&'static str> {
     }
 }
 
-/// Notes XMP d'un paquet, dans l'ordre de RATING_SOURCE_IDS : xmp:Rating (préfixe ancien « xap » accepté), MicrosoftPhoto:Rating (pourcentage),
+/// Notes XMP d'un paquet, dans l'ordre de `RATING_SOURCE_IDS` : xmp:Rating (préfixe ancien « xap » accepté), MicrosoftPhoto:Rating (pourcentage),
 /// acdsee:rating. Une note « rejetée » (-1) compte comme 0.
 fn xmp_ratings(xml: &str) -> [Option<i32>; 3] {
     let number = |names: &[&str]| xmp_value(xml, names).and_then(|value| value.trim().parse::<i32>().ok());
@@ -837,7 +836,7 @@ fn xmp_ratings(xml: &str) -> [Option<i32>; 3] {
     ]
 }
 
-/// Couleurs XMP d'un paquet, dans l'ordre de COLOR_SOURCE_IDS : xmp:Label (nom de couleur ; un libellé qui n'est pas une couleur est ignoré),
+/// Couleurs XMP d'un paquet, dans l'ordre de `COLOR_SOURCE_IDS` : xmp:Label (nom de couleur ; un libellé qui n'est pas une couleur est ignoré),
 /// digiKam:ColorLabel, photoshop:Urgency (numéros).
 fn xmp_colors(xml: &str) -> [Option<&'static str>; 3] {
     let number = |names: &[&str]| xmp_value(xml, names).and_then(|value| value.trim().parse::<i32>().ok());
@@ -848,7 +847,7 @@ fn xmp_colors(xml: &str) -> [Option<&'static str>; 3] {
     ]
 }
 
-/// Fanion d'un numéro digiKam PickLabel : 0 aucun, 1 rejeté, 2 en attente, 3 accepté.
+/// Fanion d'un numéro digiKam `PickLabel` : 0 aucun, 1 rejeté, 2 en attente, 3 accepté.
 fn pick_from_digikam(number: i32) -> Option<&'static str> {
     match number {
         0 => Some("none"),
@@ -869,7 +868,7 @@ fn pick_from_xmpdm(number: i32) -> Option<&'static str> {
     }
 }
 
-/// Fanions pick d'un paquet XMP, dans l'ordre de PICK_SOURCE_IDS : digiKam:PickLabel, xmpDM:pick, xmpDM:good (booléen : true = retenu,
+/// Fanions pick d'un paquet XMP, dans l'ordre de `PICK_SOURCE_IDS` : digiKam:PickLabel, xmpDM:pick, xmpDM:good (booléen : true = retenu,
 /// false = rejeté). Une valeur 0 est une réponse explicite (« aucun fanion »), pas une absence : seule une propriété absente laisse la main à la source suivante.
 fn xmp_picks(xml: &str) -> [Option<&'static str>; 3] {
     let number = |names: &[&str]| xmp_value(xml, names).and_then(|value| value.trim().parse::<i32>().ok());
@@ -890,7 +889,7 @@ fn xmp_picks(xml: &str) -> [Option<&'static str>; 3] {
 /// a TIFF-based RAW (whole file read by the EXIF reader), as much as the write itself.
 /// - XMP: the packet of a JPEG (first 64 KB: APP1 segments come first) or of a HEIC, then the sidecar for the sources still missing;
 /// - EXIF `Rating` / `RatingPercent` (Windows): JPEG only, and only if the internal writer does not ignore EXIF. In a RAW they are never
-///   written (ExifTool writes to the sidecar): not read, so a RAW whose EXIF rating comes first in the read order is not checked on that source.
+///   written (`ExifTool` writes to the sidecar): not read, so a RAW whose EXIF rating comes first in the read order is not checked on that source.
 pub fn read_marking(path: &Path) -> ExifMetadata {
     read_marking_with(path, true)
 }
@@ -986,7 +985,7 @@ fn parse_xmp_subjects(xml: &str) -> Vec<String> {
     keywords
 }
 
-/// Éléments `rdf:li` de la première propriété XMP de nom local `local_name` (ex. « TagsList »), quel que soit le préfixe de namespace utilisé
+/// Éléments `rdf:li` de la première propriété XMP de nom local `local_name` (ex. « `TagsList` »), quel que soit le préfixe de namespace utilisé
 /// par le logiciel qui a écrit le fichier (digiKam, digikam…). Casse du nom ignorée. Liste vide si la propriété est absente ou vide.
 fn xmp_list_items(xml: &str, local_name: &str) -> Vec<String> {
     let lower = xml.to_ascii_lowercase(); // mêmes positions que `xml` : seuls les caractères ASCII changent
@@ -1003,7 +1002,7 @@ fn xmp_list_items(xml: &str, local_name: &str) -> Vec<String> {
         if prefix_start == colon || prefix_start == 0 || bytes[prefix_start - 1] != b'<' { continue; }
         // Le nom doit se terminer là (pas « TagsListX »).
         match bytes.get(name_end) {
-            Some(b'>') | Some(b'/') => {}
+            Some(b'>' | b'/') => {}
             Some(next) if next.is_ascii_whitespace() => {}
             _ => continue,
         }
@@ -1045,21 +1044,21 @@ fn hierarchy_paths(items: Vec<String>, separator: char) -> Vec<Vec<String>> {
     paths
 }
 
-/// Schémas de mots-clés hiérarchiques en liste XMP : (propriété XMP, séparateur des niveaux). Dans l'ordre de HIERARCHY_IDS ;
-/// le dernier identifiant (ACDSee) n'est pas une liste, voir acdsee_category_paths.
+/// Schémas de mots-clés hiérarchiques en liste XMP : (propriété XMP, séparateur des niveaux). Dans l'ordre de `HIERARCHY_IDS` ;
+/// le dernier identifiant (`ACDSee`) n'est pas une liste, voir `acdsee_category_paths`.
 const HIERARCHY_SCHEMAS: [(&str, char); 4] = [("TagsList", '/'), ("hierarchicalSubject", '|'), ("CatalogSets", '|'), ("LastKeywordXMP", '/')];
 /// Identifiants des schémas côté interface : digiKam (`digiKam:TagsList`), Lightroom (`lr:hierarchicalSubject`), Media Pro (`mediapro:CatalogSets`),
-/// Microsoft Photo (`MicrosoftPhoto:LastKeywordXMP`), ACDSee (`acdsee:categories`).
+/// Microsoft Photo (`MicrosoftPhoto:LastKeywordXMP`), `ACDSee` (`acdsee:categories`).
 const HIERARCHY_IDS: [&str; 5] = ["digikam", "lightroom", "mediapro", "microsoft", "acdsee"];
-/// Ordre de priorité à la lecture : indices dans HIERARCHY_IDS, du plus au moins prioritaire. Réglable par l'utilisateur (Paramètres, onglet
+/// Ordre de priorité à la lecture : indices dans `HIERARCHY_IDS`, du plus au moins prioritaire. Réglable par l'utilisateur (Paramètres, onglet
 /// Métadonnées) ; digiKam en premier tant que l'interface n'a rien envoyé.
 static HIERARCHY_PRIORITY: std::sync::RwLock<[usize; 5]> = std::sync::RwLock::new([0, 1, 2, 3, 4]);
 
 /// Mots-clés hiérarchiques d'un paquet XMP : le premier schéma qui contient des données, dans l'ordre de priorité réglé (par défaut digiKam,
-/// puis Lightroom, Media Pro, Microsoft Photo, ACDSee), l'emporte ; les autres sont ignorés.
+/// puis Lightroom, Media Pro, Microsoft Photo, `ACDSee`), l'emporte ; les autres sont ignorés.
 /// Chaque entrée est un mot-clé actif : seul son dernier niveau l'est (les ancêtres ne le sont que s'ils ont leur propre entrée).
 fn parse_hierarchical_keywords(xml: &str) -> Vec<Vec<String>> {
-    let priority = *HIERARCHY_PRIORITY.read().unwrap_or_else(|poisoned| poisoned.into_inner());
+    let priority = *HIERARCHY_PRIORITY.read().unwrap_or_else(std::sync::PoisonError::into_inner);
     for index in priority {
         let paths = match HIERARCHY_SCHEMAS.get(index) {
             Some((local_name, separator)) => hierarchy_paths(xmp_list_items(xml, local_name), *separator),
@@ -1087,16 +1086,13 @@ pub(crate) fn decode_xml_entities(text: &str) -> String {
             code if code.starts_with('#') => code[1..].parse::<u32>().ok().and_then(char::from_u32),
             _ => None,
         });
-        match (decoded, entity_end) {
-            (Some(character), Some(end)) => { output.push(character); rest = &rest[end + 1..]; }
-            _ => { output.push('&'); rest = &rest[start + 1..]; }
-        }
+        if let (Some(character), Some(end)) = (decoded, entity_end) { output.push(character); rest = &rest[end + 1..]; } else { output.push('&'); rest = &rest[start + 1..]; }
     }
     output.push_str(rest);
     output
 }
 
-/// Catégories ACDSee : la propriété `acdsee:categories` contient, en texte, un arbre XML (échappé dans le paquet) :
+/// Catégories `ACDSee` : la propriété `acdsee:categories` contient, en texte, un arbre XML (échappé dans le paquet) :
 /// `<Categories><Category Assigned="0">Lieux<Category Assigned="1">Paris</Category></Category></Categories>`.
 /// Le nom d'une catégorie est le texte qui précède ses sous-catégories ; `Assigned="1"` marque un mot-clé actif (même modèle que l'arbre
 /// de l'application : les niveaux intermédiaires ne sont actifs que s'ils sont eux-mêmes attribués). Renvoie un chemin par catégorie attribuée.
@@ -1146,7 +1142,7 @@ fn acdsee_category_paths(xml: &str) -> Vec<Vec<String>> {
     paths
 }
 
-/// Valeur de `acdsee:categories` (arbre XML en texte, voir acdsee_category_paths) pour les mots-clés actifs `paths` : chemins fusionnés en un seul
+/// Valeur de `acdsee:categories` (arbre XML en texte, voir `acdsee_category_paths`) pour les mots-clés actifs `paths` : chemins fusionnés en un seul
 /// arbre (noms comparés sans la casse, dans l'ordre d'apparition), `Assigned="1"` sur chaque mot-clé actif, `0` sur les niveaux qui ne le sont pas.
 pub(crate) fn acdsee_categories_value(paths: &[Vec<String>]) -> String {
     struct Node { name: String, assigned: bool, children: Vec<usize> }
@@ -1193,7 +1189,7 @@ fn add_hierarchical_leaves(meta: &mut ExifMetadata) {
 }
 
 /// Decodes XML entities from an XMP value. Delegates to `decode_xml_entities` so numeric references such as `&#39;`
-/// (how ExifTool writes an apostrophe) are decoded too, otherwise the read-back check sees `yin&#39;s` instead of `yin's`.
+/// (how `ExifTool` writes an apostrophe) are decoded too, otherwise the read-back check sees `yin&#39;s` instead of `yin's`.
 fn xml_unescape(text: &str) -> String {
     decode_xml_entities(text)
 }
@@ -1213,8 +1209,8 @@ fn read_image_dimensions(path: &Path) -> Option<(i32, i32)> {
     let sof = jpeg_segments(&data).find(|segment| (0xc0..=0xcf).contains(&segment.marker) && ![0xc4, 0xc8, 0xcc].contains(&segment.marker))?;
     let content = sof.content(&data);
     if content.len() < 5 { return None; }
-    let height = u16::from_be_bytes([content[1], content[2]]) as i32;
-    let width = u16::from_be_bytes([content[3], content[4]]) as i32;
+    let height = i32::from(u16::from_be_bytes([content[1], content[2]]));
+    let width = i32::from(u16::from_be_bytes([content[3], content[4]]));
     Some((width, height)).filter(|&(w, h)| w > 0 && h > 0)
 }
 
@@ -1249,7 +1245,7 @@ fn apply_parsed_xmp(meta: &mut ExifMetadata, parsed: ParsedXmp) {
     meta.faces.regions = parsed.face_regions;
     meta.rights_sources.author[..2].clone_from_slice(&parsed.rights.author[..2]);
     meta.rights_sources.copyright[..2].clone_from_slice(&parsed.rights.copyright[..2]);
-    meta.rights_sources.credit[0] = parsed.rights.credit[0].clone();
+    meta.rights_sources.credit[0].clone_from(&parsed.rights.credit[0]);
     meta.rights_sources.usage_terms = parsed.rights.usage_terms;
     meta.rights_sources.author_email[0] = parsed.contact.as_ref().map(|contact| contact.email.clone()).filter(|email| !email.is_empty());
     meta.contact = parsed.contact.unwrap_or_default();
@@ -1279,7 +1275,7 @@ fn resolve_values(meta: &mut ExifMetadata) {
 }
 
 fn lock_read<T>(lock: &std::sync::RwLock<T>) -> std::sync::RwLockReadGuard<'_, T> {
-    lock.read().unwrap_or_else(|poisoned| poisoned.into_inner())
+    lock.read().unwrap_or_else(std::sync::PoisonError::into_inner)
 }
 
 /// Métadonnées d'une vidéo : note, couleur et mots-clés du sidecar XMP (`video.mp4.xmp` ou `video.xmp`) et date. Le fichier vidéo lui-même
@@ -1370,7 +1366,7 @@ fn read_exif_with(path: &Path, include_sidecar: bool) -> ExifMetadata {
         }
         if let Some(field) = exif.get_field(Tag::PhotographicSensitivity, In::PRIMARY) {
             if let Value::Short(ref v) = field.value {
-                if !v.is_empty() { meta.iso = v[0] as i32; }
+                if !v.is_empty() { meta.iso = i32::from(v[0]); }
             }
         }
         if let Some(field) = exif.get_field(Tag::FocalLength, In::PRIMARY) {
@@ -1462,16 +1458,16 @@ fn remove_xmp_attribute(xml: &str, name: &str) -> String {
         let name_end = start + name.len();
         let bytes = updated.as_bytes();
         let mut pos = name_end;
-        while bytes.get(pos).is_some_and(|b| b.is_ascii_whitespace()) { pos += 1; }
+        while bytes.get(pos).is_some_and(u8::is_ascii_whitespace) { pos += 1; }
         if start > 0 && bytes[start - 1].is_ascii_whitespace() && bytes.get(pos) == Some(&b'=') {
             pos += 1;
-            while bytes.get(pos).is_some_and(|b| b.is_ascii_whitespace()) { pos += 1; }
+            while bytes.get(pos).is_some_and(u8::is_ascii_whitespace) { pos += 1; }
             if let Some(quote @ (b'"' | b'\'')) = bytes.get(pos).copied() {
                 let value_start = pos + 1;
                 if let Some(end_relative) = bytes[value_start..].iter().position(|b| *b == quote) {
                     let mut attribute_start = start;
                     while attribute_start > 0 && bytes[attribute_start - 1].is_ascii_whitespace() { attribute_start -= 1; }
-                    updated.replace_range(attribute_start..value_start + end_relative + 1, "");
+                    updated.replace_range(attribute_start..=(value_start + end_relative), "");
                     search_from = attribute_start;
                     continue;
                 }
@@ -1489,7 +1485,7 @@ pub struct XmpEdit<'a> {
     pub rating: Option<i32>,
     /// `None` = label inchangé, `Some(None)` = label retiré, `Some(Some(v))` = label écrit.
     pub label: Option<Option<&'a str>>,
-    /// `None` = fanion pick inchangé, sinon « none », « pending », « picked » ou « rejected » (voir normalize_pick_flag).
+    /// `None` = fanion pick inchangé, sinon « none », « pending », « picked » ou « rejected » (voir `normalize_pick_flag`).
     pub pick: Option<&'static str>,
 }
 
@@ -1513,7 +1509,7 @@ pub(crate) fn pick_values(pick: &str) -> (i32, i32, Option<&'static str>) {
     }
 }
 
-/// Retire une propriété XMP exprimée en élément (`<nom>…</nom>` ou `<nom/>`) ; la forme attribut est traitée par remove_xmp_attribute.
+/// Retire une propriété XMP exprimée en élément (`<nom>…</nom>` ou `<nom/>`) ; la forme attribut est traitée par `remove_xmp_attribute`.
 fn remove_xmp_element(xml: &str, name: &str) -> String {
     let mut updated = xml.to_string();
     let opening = format!("<{name}");
@@ -1550,7 +1546,7 @@ pub(crate) fn strip_xmp_marks(xml: &str) -> String {
     updated
 }
 
-/// Writes rating, color label and/or pick flag via ExifTool (see `XmpEdit`).
+/// Writes rating, color label and/or pick flag via `ExifTool` (see `XmpEdit`).
 pub fn write_xmp_metadata(image_path: &str, edit: XmpEdit) -> std::io::Result<()> {
     crate::exiftool::write_marking(Path::new(image_path), edit)
 }
@@ -1574,7 +1570,7 @@ fn remove_xmp_list_property(xml: &str, local_name: &str, only_prefix: Option<&st
         let mut prefix_start = colon;
         while prefix_start > 0 && (bytes[prefix_start - 1].is_ascii_alphanumeric() || bytes[prefix_start - 1] == b'_' || bytes[prefix_start - 1] == b'-') { prefix_start -= 1; }
         let is_open_tag = prefix_start < colon && prefix_start > 0 && bytes[prefix_start - 1] == b'<';
-        let ends_here = bytes.get(name_end) == Some(&b'>') || bytes.get(name_end) == Some(&b'/') || bytes.get(name_end).is_some_and(|byte| byte.is_ascii_whitespace());
+        let ends_here = bytes.get(name_end) == Some(&b'>') || bytes.get(name_end) == Some(&b'/') || bytes.get(name_end).is_some_and(u8::is_ascii_whitespace);
         let prefix_ok = only_prefix.is_none_or(|wanted| &updated[prefix_start..colon] == wanted);
         if !(is_open_tag && ends_here && prefix_ok) { from = name_end; continue; }
         let Some(open_end) = xml_tag_end(&lower, prefix_start - 1) else { break; };
@@ -1661,7 +1657,7 @@ fn matching_description_end(xml: &str, after_open: usize) -> Option<usize> {
 /// ses sources.
 #[derive(Default, Clone, Debug)]
 pub struct MetadataUpdate {
-    /// Mots-clés actifs, un chemin hiérarchique par mot-clé (ex. ["Lieux", "France", "Paris"]).
+    /// Mots-clés actifs, un chemin hiérarchique par mot-clé (ex. `["Lieux", "France", "Paris"]`).
     pub keywords: Option<Vec<Vec<String>>>,
     pub title: Option<String>,
     pub description: Option<String>,
@@ -1748,7 +1744,7 @@ impl MetadataUpdate {
     }
 }
 
-/// Noms à plat des mots-clés (dernier niveau de chaque chemin), sans doublon (casse ignorée) : dc:subject, IPTC, XPKeywords.
+/// Noms à plat des mots-clés (dernier niveau de chaque chemin), sans doublon (casse ignorée) : dc:subject, IPTC, `XPKeywords`.
 pub(crate) fn keyword_leaves(paths: &[Vec<String>]) -> Vec<String> {
     let mut leaves: Vec<String> = Vec::new();
     for segments in paths {
@@ -1875,7 +1871,7 @@ fn parse_photoshop_resources(payload: &[u8]) -> (Vec<PhotoshopResource>, Vec<u8>
         p = data_start + size;
         if !size.is_multiple_of(2) { p += 1; }
     }
-    let trailer = payload.get(p..).map(|rest| rest.to_vec()).unwrap_or_default();
+    let trailer = payload.get(p..).map(<[u8]>::to_vec).unwrap_or_default();
     (resources, trailer)
 }
 
@@ -2005,13 +2001,13 @@ fn same_stem_siblings(image_path: &Path) -> Option<Vec<std::path::PathBuf>> {
 }
 
 /// Content of the sidecar an image reads: `photo.ext.xmp` if it exists, else `photo.xmp`. Never both merged: once an image has its own
-/// sidecar (see sidecar_target), a value removed from it must not come back from a `photo.xmp` shared with another image.
+/// sidecar (see `sidecar_target`), a value removed from it must not come back from a `photo.xmp` shared with another image.
 pub(crate) fn read_sidecar(image_path: &Path) -> Option<String> {
     fs::read_to_string(active_sidecar(image_path)?).ok()
 }
 
 /// The sidecar an image reads, if it exists: `photo.ext.xmp`, else `photo.xmp` (the same choice as `read_sidecar`, which reads it). Its
-/// modification date joins the image's in `photos.effective_modified` (library_sync.rs), since a sidecar write never touches the image file.
+/// modification date joins the image's in `photos.effective_modified` (`library_sync.rs`), since a sidecar write never touches the image file.
 pub(crate) fn active_sidecar(image_path: &Path) -> Option<std::path::PathBuf> {
     let [appended, compatible] = sidecar_candidates(image_path);
     if appended.exists() { Some(appended) } else if compatible.exists() { Some(compatible) } else { None }
@@ -2045,7 +2041,7 @@ pub(crate) fn detect_sidecar_conflict(path: &Path, embedded_matches: impl FnOnce
     Some(SidecarConflict { sidecar_path: sidecar.to_string_lossy().into_owned(), sidecar_name, shared })
 }
 
-/// Writes `update` (keywords, title, description, rights, regions, GPS) to the file or its sidecar via ExifTool.
+/// Writes `update` (keywords, title, description, rights, regions, GPS) to the file or its sidecar via `ExifTool`.
 pub fn write_metadata(image_path: &str, update: &MetadataUpdate) -> std::io::Result<()> {
     crate::exiftool::write_metadata(Path::new(image_path), update)
 }
@@ -2084,7 +2080,7 @@ pub fn text_mismatch(path: &Path, update: &MetadataUpdate, meta: &ExifMetadata) 
 }
 
 /// Vérification après écriture de l'auteur et des droits : mêmes sources que pour le titre (XMP toujours, IPTC pour un JPEG, EXIF pour un JPEG écrit
-/// par ExifTool), valeurs coupées à la longueur maximale du champ IPTC, `©` remplacé par `(c)` dans l'EXIF Copyright.
+/// par `ExifTool`), valeurs coupées à la longueur maximale du champ IPTC, `©` remplacé par `(c)` dans l'EXIF Copyright.
 fn rights_mismatch(path: &Path, update: &MetadataUpdate, meta: &ExifMetadata) -> Option<String> {
     let jpeg = matches!(path.extension().and_then(|value| value.to_str()).map(str::to_ascii_lowercase).as_deref(), Some("jpg" | "jpeg"));
     let with_exif = jpeg;
@@ -2182,7 +2178,7 @@ pub(crate) fn xml_tag_end(xml: &str, start: usize) -> Option<usize> {
     for (offset, byte) in xml.as_bytes()[start..].iter().enumerate() {
         match (quote, *byte) {
             (Some(open), current) if current == open => quote = None,
-            (None, b'"') | (None, b'\'') => quote = Some(*byte),
+            (None, b'"' | b'\'') => quote = Some(*byte),
             (None, b'>') => return Some(start + offset),
             _ => {}
         }
@@ -2382,7 +2378,7 @@ pub fn read_metadata_details(path: &Path) -> MetadataDetails {
         return details;
     }
     if let Some((width, height)) = read_image_dimensions(path) {
-        details.file.push(detail_entry("dimensions", format!("{width} x {height} ({:.1} MP)", width as f64 * height as f64 / 1_000_000.0)));
+        details.file.push(detail_entry("dimensions", format!("{width} x {height} ({:.1} MP)", f64::from(width) * f64::from(height) / 1_000_000.0)));
     }
     details.exif = read_exif_entries(path);
     if let Some(packet) = read_xmp_packet(path) { details.xmp = list_xmp_properties(&packet); }

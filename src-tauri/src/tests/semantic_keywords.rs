@@ -2,9 +2,9 @@
 //!
 //! The measure that chose the score and the thresholds (§23) reads a copy of a real catalogue and needs the model; it is ignored and never
 //! runs in CI. Run it in release mode (it scores every photo against every keyword):
-//!   SEMANTIC_CATALOG=<copy of photos_library.db> SEMANTIC_MODEL_DIR=<model folder> \
-//!   cargo test --release semantic_keywords::tests::measure -- --ignored --nocapture
-//! Never point SEMANTIC_CATALOG at the catalogue of the application: copy it (with its -wal and -shm files) first. It is opened read-only.
+//!   `SEMANTIC_CATALOG`=<copy of photos_library.db> `SEMANTIC_MODEL_DIR`=<model folder> \
+//!   cargo test --release `semantic_keywords::tests::measure` -- --ignored --nocapture
+//! Never point `SEMANTIC_CATALOG` at the catalogue of the application: copy it (with its -wal and -shm files) first. It is opened read-only.
 //! The speed measure on 100,000 synthetic photos is ignored too: `cargo test --release semantic_keywords::tests::speed -- --ignored --nocapture`.
 
 use std::collections::{HashMap, HashSet};
@@ -132,7 +132,7 @@ fn the_candidate_threshold_follows_the_spread_of_the_examples() {
         .iter()
         .map(|&a| angles.iter().filter(|&&b| b != a).map(|&b| (a - b).cos()).sum::<f32>() / 4.0)
         .collect();
-    own.sort_by(|a, b| a.total_cmp(b));
+    own.sort_by(f32::total_cmp);
     // q = 0.1 of five values: the first one (nearest rank), here the outlier at 1.0; q = 0.5: the median.
     assert!((own_threshold(&examples, 0.1).unwrap() - own[0]).abs() < 1e-5);
     assert!((own_threshold(&examples, 0.5).unwrap() - own[2]).abs() < 1e-5);
@@ -849,7 +849,7 @@ fn measure_keyword_scores_on_a_catalogue_copy() {
             let norm2: f32 = training.iter().map(|&i| sums[i]).sum();
             // Cosine of each training photo with the centroid of the others: the keyword's own spread.
             let mut own: Vec<f32> = training.iter().map(|&i| (sums[i] - real.g(i, i)) / (norm2 - 2.0 * sums[i] + real.g(i, i)).sqrt()).collect();
-            own.sort_by(|a, b| a.total_cmp(b));
+            own.sort_by(f32::total_cmp);
             training_self.extend(own.iter().copied());
             let thresholds = [percentile(&own, 0.1), percentile(&own, 0.25), percentile(&own, 0.5)];
             let candidates: Vec<usize> = (0..n).filter(|p| !in_training.contains(p)).collect();
@@ -862,17 +862,17 @@ fn measure_keyword_scores_on_a_catalogue_copy() {
                 .iter()
                 .map(|&i| mean_of_top(training.iter().filter(|&&j| j != i).map(|&j| real.g(i, j)), NEAREST))
                 .collect();
-            own_nearest.sort_by(|a, b| a.total_cmp(b));
+            own_nearest.sort_by(f32::total_cmp);
             let nearest_thresholds = [percentile(&own_nearest, 0.1), percentile(&own_nearest, 0.25), percentile(&own_nearest, 0.5)];
             for &(score, positive) in &nearest { adaptive_nearest.push((score, positive, nearest_thresholds)); }
             centroid_pairs.extend(centroid.iter().copied());
             nearest_pairs.extend(nearest.iter().copied());
             centroid_quality.push(quality(&mut centroid, held.len()));
             nearest_quality.push(quality(&mut nearest, held.len()));
-            for variant in 0..3 {
+            for (variant, quality_bucket) in text_quality.iter_mut().enumerate() {
                 let t = text_vector(k, variant);
                 let mut scored: Vec<(f32, bool)> = candidates.iter().map(|&p| (dot(&real.vectors[p], t), held.contains(&p))).collect();
-                text_quality[variant].push(quality(&mut scored, held.len()));
+                quality_bucket.push(quality(&mut scored, held.len()));
             }
         }
         println!(" training = {training_rule}");
@@ -881,7 +881,7 @@ fn measure_keyword_scores_on_a_catalogue_copy() {
         for (variant, label) in ["text: name", "text: name (parent)", "text: name (parent), template"].iter().enumerate() {
             print_quality(label, &text_quality[variant]);
         }
-        training_self.sort_by(|a, b| a.total_cmp(b));
+        training_self.sort_by(f32::total_cmp);
         println!(
             "  cosine of a tagged photo with its keyword centroid (leave one out): p10 {:.3} p25 {:.3} median {:.3} p90 {:.3}",
             percentile(&training_self, 0.1),

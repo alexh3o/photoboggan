@@ -3,7 +3,7 @@
 //! Modèle (choisi avec l'utilisateur) :
 //! - trois types de nœuds : `folder` (dossier virtuel), `manual` (contenu choisi à la main, table `album_photos`) et `smart` (filtres enregistrés
 //!   dans `filters`, au format JSON propre à l'interface : critères de recherche et dossiers physiques, jamais d'identifiants de photos) ;
-//! - parent_id = 0 : racine. Deux frères ne diffèrent jamais que par leur nom, casse ignorée ;
+//! - `parent_id` = 0 : racine. Deux frères ne diffèrent jamais que par leur nom, casse ignorée ;
 //! - un dossier virtuel peut contenir tout type de nœud. Un album manuel n'a jamais d'enfant. Un album intelligent n'a pour enfants que des
 //!   albums intelligents (ils s'ajoutent à ses filtres) ; il peut aussi être enfant d'un album manuel (il filtre son contenu) ;
 //! - une photo peut appartenir à plusieurs albums manuels ; supprimée du catalogue, elle quitte tous les albums (déclencheur SQL : il couvre

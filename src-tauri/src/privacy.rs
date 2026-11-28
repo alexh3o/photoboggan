@@ -52,7 +52,7 @@ impl PrivacySet {
 static ACTIVE: RwLock<Option<PrivacySet>> = RwLock::new(None);
 
 fn read_active() -> Option<PrivacySet> {
-    ACTIVE.read().unwrap_or_else(|poisoned| poisoned.into_inner()).clone()
+    ACTIVE.read().unwrap_or_else(std::sync::PoisonError::into_inner).clone()
 }
 
 /// Applique les ensembles actifs : leurs critères se cumulent (une photo est masquée dès qu'elle répond à un critère de l'un d'eux).
@@ -63,7 +63,7 @@ fn apply(sets: Vec<PrivacySet>) {
         merged.keywords.extend(set.keywords);
         merged.date_ranges.extend(set.date_ranges);
     }
-    *ACTIVE.write().unwrap_or_else(|poisoned| poisoned.into_inner()) = if merged.is_empty() { None } else { Some(merged) };
+    *ACTIVE.write().unwrap_or_else(std::sync::PoisonError::into_inner) = if merged.is_empty() { None } else { Some(merged) };
 }
 
 /// Au démarrage, avant que l'interface ne parle : reprend les ensembles actifs enregistrés dans `config.json`, pour qu'aucune photo masquée
@@ -108,7 +108,7 @@ fn clean_path_text(text: &str) -> String {
 }
 
 fn digits(text: &str) -> String {
-    text.chars().filter(|character| character.is_ascii_digit()).collect()
+    text.chars().filter(char::is_ascii_digit).collect()
 }
 
 /// Littéral SQL texte : apostrophes doublées, caractères NUL retirés.

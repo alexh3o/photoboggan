@@ -16,7 +16,7 @@ pub(crate) fn environment(runtime: &Path) -> Result<Environment, String> {
     static INIT_LOCK: Mutex<()> = Mutex::new(());
     if let Some(environment) = ENVIRONMENT.get() { return Ok(environment.clone()); }
     // One attempt at a time, and only a success is kept: a failure (library not imported yet, locked…) can be retried.
-    let _guard = INIT_LOCK.lock().unwrap_or_else(|poisoned| poisoned.into_inner());
+    let _guard = INIT_LOCK.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
     if let Some(environment) = ENVIRONMENT.get() { return Ok(environment.clone()); }
     let built = ort::init_from(runtime)
         .map_err(|error| format!("ONNX Runtime impossible à charger : {error}"))?

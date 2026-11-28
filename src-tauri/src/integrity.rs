@@ -11,7 +11,7 @@
 //! Non vérifiés (comptés à part, jamais signalés comme corrompus) : vidéos (leur image fixe dépend du système ou de ffmpeg) et GIF, BMP, AVIF (pas de décodeur).
 //! Un décodeur qui panique sur un fichier malformé est traité comme un échec de décodage.
 //!
-//! Un fichier qui ne répond pas (lecture bloquée, partage réseau coupé) est abandonné après FILE_TIMEOUT et signalé suspect ; l'arrêt demandé par
+//! Un fichier qui ne répond pas (lecture bloquée, partage réseau coupé) est abandonné après `FILE_TIMEOUT` et signalé suspect ; l'arrêt demandé par
 //! l'utilisateur est aussi observé pendant l'analyse d'un fichier. Les images PNG / WebP aux dimensions déraisonnables sont refusées avant toute allocation.
 //!
 //! Performances : nombre de threads proportionnel aux cœurs (moitié des cœurs, entre 2 et 6, pour laisser de la place à l'interface). Les formats lourds
@@ -135,9 +135,9 @@ impl Gate {
 
     fn enter(gate: &Arc<Gate>, token: &Arc<SlotToken>) -> GateGuard {
         {
-            let mut available = gate.available.lock().unwrap_or_else(|poisoned| poisoned.into_inner());
+            let mut available = gate.available.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
             while *available == 0 {
-                available = gate.released.wait(available).unwrap_or_else(|poisoned| poisoned.into_inner());
+                available = gate.released.wait(available).unwrap_or_else(std::sync::PoisonError::into_inner);
             }
             *available -= 1;
         }
@@ -146,7 +146,7 @@ impl Gate {
     }
 
     fn release(&self) {
-        *self.available.lock().unwrap_or_else(|poisoned| poisoned.into_inner()) += 1;
+        *self.available.lock().unwrap_or_else(std::sync::PoisonError::into_inner) += 1;
         self.released.notify_one();
     }
 
@@ -183,7 +183,7 @@ fn extension_of(source: &Path) -> String {
     source
         .extension()
         .and_then(|value| value.to_str())
-        .map(|value| value.to_ascii_lowercase())
+        .map(str::to_ascii_lowercase)
         .filter(|value| !value.is_empty())
         .unwrap_or_else(|| "sans extension".to_string())
 }
@@ -208,7 +208,7 @@ fn sniff(source: &Path) -> Format {
 
 /// Aplatit un pixel transparent sur fond blanc (le JPEG de la miniature n'a pas de transparence).
 fn flatten(color: [u8; 3], alpha: u8) -> [u8; 3] {
-    let blend = |channel: u8| ((channel as u32 * alpha as u32 + 255 * (255 - alpha as u32) + 127) / 255) as u8;
+    let blend = |channel: u8| ((u32::from(channel) * u32::from(alpha) + 255 * (255 - u32::from(alpha)) + 127) / 255) as u8;
     [blend(color[0]), blend(color[1]), blend(color[2])]
 }
 
@@ -263,9 +263,8 @@ pub(crate) fn check_jpeg_structure(data: &[u8]) -> Result<(), String> {
     let mut precision: Vec<[Option<u8>; 64]> = Vec::new();
     let mut covered: Vec<bool> = Vec::new();
     let mut scans = 0usize;
-    loop {
-        // Entropy-coded data is crossed byte by byte: stuffed FF00 and restart markers are no-ops below.
-        let Some(offset) = data[position..].iter().position(|&byte| byte == 0xff) else { break };
+    // Entropy-coded data is crossed byte by byte: stuffed FF00 and restart markers are no-ops below.
+    while let Some(offset) = data[position..].iter().position(|&byte| byte == 0xff) {
         position += offset;
         while position < data.len() && data[position] == 0xff { position += 1; }
         if position >= data.len() { break; }
@@ -572,9 +571,9 @@ pub fn run_with_options(
         None => WalkDir::new(folder)
             .into_iter()
             .take_while(|_| !cancel.load(Ordering::Relaxed))
-            .filter_map(|entry| entry.ok())
+            .filter_map(std::result::Result::ok)
             .filter(|entry| !entry.file_type().is_dir() && library_sync::is_photo_file(entry.path()))
-            .map(|entry| entry.into_path())
+            .map(walkdir::DirEntry::into_path)
             .collect(),
     };
 
@@ -599,12 +598,12 @@ pub fn run_with_options(
     let hash_buffer: Mutex<Vec<(i64, ComputedHashes)>> = Mutex::new(Vec::new());
 
     // Dossier en cours : annoncé seulement quand il change (les fichiers sont parcourus dossier par dossier).
-    let root_name = folder.file_name().map(|name| name.to_string_lossy().into_owned()).unwrap_or_else(|| folder.to_string_lossy().into_owned());
+    let root_name = folder.file_name().map_or_else(|| folder.to_string_lossy().into_owned(), |name| name.to_string_lossy().into_owned());
     let last_folder: Mutex<Option<PathBuf>> = Mutex::new(None);
     let announce_folder = |path: &Path| {
         let Some(directory) = path.parent() else { return };
         {
-            let mut last = last_folder.lock().unwrap_or_else(|poisoned| poisoned.into_inner());
+            let mut last = last_folder.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
             if last.as_deref() == Some(directory) { return; }
             *last = Some(directory.to_path_buf());
         }
@@ -617,7 +616,7 @@ pub fn run_with_options(
 
     if entries.is_empty() { progress(1.0); }
 
-    let cores = std::thread::available_parallelism().map(|count| count.get()).unwrap_or(4);
+    let cores = std::thread::available_parallelism().map_or(4, std::num::NonZero::get);
     let threads = rayon::ThreadPoolBuilder::new().num_threads((cores / 2).clamp(2, 6)).build().map_err(|error| error.to_string())?;
     threads.install(|| {
         entries.par_iter().for_each(|path| {
@@ -638,20 +637,17 @@ pub fn run_with_options(
                     .unwrap_or_else(|_| Err("Decoder aborted: file probably corrupt".to_string()))
                 }
             };
-            let result = match run_bounded(work, FILE_TIMEOUT, cancel) {
-                Some(result) => result,
-                None => {
-                    heavy.give_back(&token);
-                    if cancel.load(Ordering::Relaxed) { return; }
-                    Err(format!("Timed out ({} s): read or decoding stuck", FILE_TIMEOUT.as_secs()))
-                }
+            let result = if let Some(result) = run_bounded(work, FILE_TIMEOUT, cancel) { result } else {
+                heavy.give_back(&token);
+                if cancel.load(Ordering::Relaxed) { return; }
+                Err(format!("Timed out ({} s): read or decoding stuck", FILE_TIMEOUT.as_secs()))
             };
             let micros = file_started.elapsed().as_micros() as u64;
             let extension = extension_of(path);
             match result {
                 Ok((Outcome::Unsupported, _)) => {
                     unsupported.fetch_add(1, Ordering::Relaxed);
-                    *unsupported_by_extension.lock().unwrap_or_else(|poisoned| poisoned.into_inner()).entry(extension).or_insert(0) += 1;
+                    *unsupported_by_extension.lock().unwrap_or_else(std::sync::PoisonError::into_inner).entry(extension).or_insert(0) += 1;
                 }
                 Ok((Outcome::Healthy(thumbnail), computed)) => {
                     checked.fetch_add(1, Ordering::Relaxed);
@@ -663,22 +659,22 @@ pub fn run_with_options(
                     }
                     if let (Some(id), Some(db_pool)) = (photo_id, pool) {
                         if computed.phash.is_some() || computed.exact_full.is_some() || computed.exact_prepass.is_some() {
-                            let mut buf = hash_buffer.lock().unwrap_or_else(|poisoned| poisoned.into_inner());
+                            let mut buf = hash_buffer.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
                             buf.push((id, computed));
                             if buf.len() >= crate::duplicates::HASH_CHUNK_SIZE {
                                 flush_computed_hashes(db_pool, &mut buf);
                             }
                         }
                     }
-                    let mut timings = timings_by_extension.lock().unwrap_or_else(|poisoned| poisoned.into_inner());
+                    let mut timings = timings_by_extension.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
                     let entry = timings.entry(extension).or_insert((0, 0));
                     entry.0 += 1;
                     entry.1 += micros;
                 }
                 Err(error) => {
                     checked.fetch_add(1, Ordering::Relaxed);
-                    suspects.lock().unwrap_or_else(|poisoned| poisoned.into_inner()).push(IntegrityIssue { path: path.to_string_lossy().into_owned(), error });
-                    let mut timings = timings_by_extension.lock().unwrap_or_else(|poisoned| poisoned.into_inner());
+                    suspects.lock().unwrap_or_else(std::sync::PoisonError::into_inner).push(IntegrityIssue { path: path.to_string_lossy().into_owned(), error });
+                    let mut timings = timings_by_extension.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
                     let entry = timings.entry(extension).or_insert((0, 0));
                     entry.0 += 1;
                     entry.1 += micros;
@@ -691,22 +687,22 @@ pub fn run_with_options(
     });
 
     if let Some(db_pool) = pool {
-        let mut buf = hash_buffer.into_inner().unwrap_or_else(|poisoned| poisoned.into_inner());
+        let mut buf = hash_buffer.into_inner().unwrap_or_else(std::sync::PoisonError::into_inner);
         flush_computed_hashes(db_pool, &mut buf);
     }
 
-    let mut suspects = suspects.into_inner().unwrap_or_else(|poisoned| poisoned.into_inner());
+    let mut suspects = suspects.into_inner().unwrap_or_else(std::sync::PoisonError::into_inner);
     suspects.sort_by_key(|a| a.path.to_lowercase());
     let mut timings: Vec<ExtensionStat> = timings_by_extension
         .into_inner()
-        .unwrap_or_else(|poisoned| poisoned.into_inner())
+        .unwrap_or_else(std::sync::PoisonError::into_inner)
         .into_iter()
         .map(|(extension, (files, micros))| ExtensionStat { extension, files, average_millis: micros as f64 / files as f64 / 1000.0 })
         .collect();
     timings.sort_by(|a, b| a.extension.cmp(&b.extension));
     let mut unsupported_extensions: Vec<ExtensionCount> = unsupported_by_extension
         .into_inner()
-        .unwrap_or_else(|poisoned| poisoned.into_inner())
+        .unwrap_or_else(std::sync::PoisonError::into_inner)
         .into_iter()
         .map(|(extension, files)| ExtensionCount { extension, files })
         .collect();
@@ -769,7 +765,7 @@ pub fn write_report(directory: &Path, preamble: &str, headers: &[String], rows: 
                 }
                 return Ok(target);
             }
-            Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => continue,
+            Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => {}
             Err(error) => return Err(format!("Cannot create file: {error}")),
         }
     }

@@ -151,7 +151,7 @@ pub(crate) fn install_from(reader: &mut dyn Read, dir: &Path, file: &Expected, c
 }
 
 /// Downloads `url` and installs it as `file` in `dir` (blocking: call it off the main thread). `body_timeout` bounds the whole transfer of
-/// this file; a frozen connection fails earlier (IDLE_TIMEOUT). The caller checks that Internet access is allowed.
+/// this file; a frozen connection fails earlier (`IDLE_TIMEOUT`). The caller checks that Internet access is allowed.
 pub(crate) fn download(url: &str, dir: &Path, file: &Expected, body_timeout: Duration, cancel: &AtomicBool, on_bytes: &mut dyn FnMut(u64)) -> Result<(), String> {
     let response = ureq::get(url)
         .config()

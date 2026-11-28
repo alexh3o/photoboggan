@@ -1,4 +1,4 @@
-//! Tests de main.rs : cache des miniatures et des aperçus après une écriture de métadonnées (keep_cached_images).
+//! Tests de main.rs : cache des miniatures et des aperçus après une écriture de métadonnées (`keep_cached_images`).
 //! Fichiers synthétiques dans un dossier temporaire ; aucune écriture de métadonnées réelle (le contenu du fichier est simplement modifié).
 
 use super::*;
@@ -271,7 +271,7 @@ fn thumbnail_cache_size_default_is_shared_with_the_frontend() {
     assert_eq!(startup_thumbnail_cache_size(Some(300)), expected);
 }
 
-/// Changing the storage location carries every data folder, logs included (they may name the only copy of a photo left by ExifTool),
+/// Changing the storage location carries every data folder, logs included (they may name the only copy of a photo left by `ExifTool`),
 /// and the old location is then emptied of them.
 #[test]
 fn storage_copy_carries_the_logs_and_cleanup_removes_them() {

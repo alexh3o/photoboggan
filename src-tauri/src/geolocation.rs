@@ -1,7 +1,7 @@
 //! Effacement et restauration de la géolocalisation des photos (menu contextuel) : seules écritures du GPS dans les fichiers.
 //!
 //! - Effacer : les coordonnées sont d'abord sauvegardées en base (table `erased_locations`), puis retirées du fichier : EXIF et XMP avec
-//!   ExifTool (fichiers écrits directement : JPEG, HEIC), XMP seul avec l'écriture interne. Une photo dont le GPS est dans l'EXIF est refusée
+//!   `ExifTool` (fichiers écrits directement : JPEG, HEIC), XMP seul avec l'écriture interne. Une photo dont le GPS est dans l'EXIF est refusée
 //!   quand cet EXIF ne peut pas être modifié (écriture interne, ou format écrit dans un sidecar : RAW, PNG, WebP…) : elle resterait géolocalisée.
 //! - Restaurer : les coordonnées sauvegardées sont réécrites par le chemin d'écriture actif.
 //! - La sauvegarde disparaît dès que la photo retrouve des coordonnées (restauration, ou relecture d'un fichier géolocalisé entre-temps par un
@@ -47,7 +47,7 @@ pub struct GeoPhoto {
 pub struct GeoFailure {
     pub photo_id: i64,
     pub path: String,
-    /// Code (« gps_in_exif_internal_writer », « gps_in_exif_sidecar_format ») ou message d'erreur.
+    /// Code (« `gps_in_exif_internal_writer` », « `gps_in_exif_sidecar_format` ») ou message d'erreur.
     pub error: String,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub sidecar_conflict: Option<crate::exif::SidecarConflict>,
@@ -73,7 +73,7 @@ pub fn get_erased_location_ids(state: State<'_, AppState>) -> Result<Vec<i64>, S
     rows.collect::<rusqlite::Result<_>>().map_err(|e| e.to_string())
 }
 
-/// Reason why GPS in this file cannot be erased by ExifTool, if any.
+/// Reason why GPS in this file cannot be erased by `ExifTool`, if any.
 pub fn erase_refusal(path: &Path, exif_gps: bool) -> Option<&'static str> {
     if !exif_gps { return None; }
     if !crate::exiftool::writes_in_file(path) { return Some("gps_in_exif_sidecar_format"); }
@@ -81,7 +81,7 @@ pub fn erase_refusal(path: &Path, exif_gps: bool) -> Option<&'static str> {
 }
 
 fn now_millis() -> i64 {
-    std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map(|elapsed| elapsed.as_millis() as i64).unwrap_or(0)
+    std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map_or(0, |elapsed| elapsed.as_millis() as i64)
 }
 
 const SAME_PLACE: f64 = 1e-5; // ≈ 1 m : écart toléré entre les coordonnées écrites et relues (arrondis des formats)
@@ -181,7 +181,7 @@ fn load_targets(conn: &rusqlite::Connection, photo_ids: &[i64]) -> Result<Vec<(i
 
 fn run(app: &tauri::AppHandle, pool: &DbPool, photo_ids: Vec<i64>, restore: bool, task_id: Option<String>, cancel: Option<Arc<AtomicBool>>) -> Result<GeoWriteResult, String> {
     // Même verrou que les écritures de mots-clés : jamais deux écritures de métadonnées en même temps sur un fichier.
-    let _write_guard = crate::keywords::WRITE_LOCK.lock().unwrap_or_else(|poisoned| poisoned.into_inner());
+    let _write_guard = crate::keywords::WRITE_LOCK.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
     let cache_dirs = crate::ImageCacheDirs::of(&app.state::<AppState>());
     let conn = pool.get().map_err(|e| e.to_string())?;
     let targets = load_targets(&conn, &photo_ids)?;
@@ -203,25 +203,22 @@ fn run(app: &tauri::AppHandle, pool: &DbPool, photo_ids: Vec<i64>, restore: bool
             let meta = crate::exif::read_exif(Path::new(&path));
             match meta.gps.or(located) {
                 None => None,
-                Some(coordinates) => match erase_refusal(Path::new(&path), meta.gps_sources[0].is_some()) {
-                    Some(reason) => {
-                        result.refused.push(GeoFailure { photo_id, path: path.clone(), error: reason.to_string(), sidecar_conflict: None });
-                        None
-                    }
-                    None => {
-                        // Sauvegarde AVANT l'écriture : les coordonnées ne sont jamais perdues ; retirée si l'effacement échoue.
-                        let saved = conn.execute(
-                            "INSERT OR REPLACE INTO erased_locations (photo_id, lat, lon, erased_at) VALUES (?1, ?2, ?3, ?4)",
-                            params![photo_id, coordinates.0, coordinates.1, now_millis()],
-                        );
-                        Some(match saved {
-                            Err(error) => Err(GeoWriteError::from(format!("Sauvegarde des coordonnées impossible : {error}"))),
-                            Ok(_) => write_one(&conn, &cache_dirs, photo_id, &path, None).inspect_err(|_| {
-                                let still_located = crate::exif::read_exif(Path::new(&path)).gps.is_some();
-                                if still_located { let _ = conn.execute("DELETE FROM erased_locations WHERE photo_id = ?1", [photo_id]); }
-                            }),
-                        })
-                    }
+                Some(coordinates) => if let Some(reason) = erase_refusal(Path::new(&path), meta.gps_sources[0].is_some()) {
+                    result.refused.push(GeoFailure { photo_id, path: path.clone(), error: reason.to_string(), sidecar_conflict: None });
+                    None
+                } else {
+                    // Sauvegarde AVANT l'écriture : les coordonnées ne sont jamais perdues ; retirée si l'effacement échoue.
+                    let saved = conn.execute(
+                        "INSERT OR REPLACE INTO erased_locations (photo_id, lat, lon, erased_at) VALUES (?1, ?2, ?3, ?4)",
+                        params![photo_id, coordinates.0, coordinates.1, now_millis()],
+                    );
+                    Some(match saved {
+                        Err(error) => Err(GeoWriteError::from(format!("Sauvegarde des coordonnées impossible : {error}"))),
+                        Ok(_) => write_one(&conn, &cache_dirs, photo_id, &path, None).inspect_err(|_| {
+                            let still_located = crate::exif::read_exif(Path::new(&path)).gps.is_some();
+                            if still_located { let _ = conn.execute("DELETE FROM erased_locations WHERE photo_id = ?1", [photo_id]); }
+                        }),
+                    })
                 },
             }
         };

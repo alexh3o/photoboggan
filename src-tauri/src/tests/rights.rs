@@ -91,9 +91,9 @@ fn the_author_prefilter_keeps_a_superset_of_the_matching_photos() {
     conn.execute("UPDATE photos SET author = 'Ada Lovelace' WHERE id = ?1", params![ada]).unwrap();
     conn.execute("UPDATE photos SET author = 'Bob; Ada Lovelace' WHERE id = ?1", params![both]).unwrap();
     let ids = |authors: &[&str]| -> Vec<i64> {
-        let filter = crate::db::PhotoPrefilter { authors: authors.iter().map(|author| author.to_string()).collect(), ..Default::default() };
+        let filter = crate::db::PhotoPrefilter { authors: authors.iter().map(std::string::ToString::to_string).collect(), ..Default::default() };
         let mut ids: Vec<i64> = crate::db::get_photos_filtered(&pool, 0, 10, None, true, "name", true, &filter).unwrap().into_iter().map(|photo| photo.id).collect();
-        ids.sort();
+        ids.sort_unstable();
         ids
     };
     assert_eq!(ids(&["ada lovelace"]), vec![ada, both], "lowercase text, case-insensitive");

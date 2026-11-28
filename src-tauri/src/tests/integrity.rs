@@ -173,7 +173,7 @@ fn csv_fields_cannot_turn_into_spreadsheet_formulas() {
 #[test]
 fn report_is_written_once_and_never_overwritten() {
     let dir = tempfile::tempdir().unwrap();
-    let headers: Vec<String> = ["Nom", "Dossier", "Chemin", "Problème"].iter().map(|s| s.to_string()).collect();
+    let headers: Vec<String> = ["Nom", "Dossier", "Chemin", "Problème"].iter().map(std::string::ToString::to_string).collect();
     let rows = vec![IntegrityIssue { path: dir.path().join("=evil.jpg").to_string_lossy().to_string(), error: "Signature invalide".into() }];
     let first = write_report(dir.path(), "Titre\nLigne", &headers, &rows).unwrap();
     let second = write_report(dir.path(), "Titre", &headers, &rows).unwrap();

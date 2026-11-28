@@ -1,12 +1,12 @@
 //! Zones privées de la carte : lieux (cercle ou polygone) dont les tuiles sont téléchargées à l'avance et lues uniquement sur le disque.
 //!
-//! - Les zones sont en base (table `private_zones`) ; les tuiles de chacune dans un fichier MBTiles (SQLite, format standard et importable)
+//! - Les zones sont en base (table `private_zones`) ; les tuiles de chacune dans un fichier `MBTiles` (SQLite, format standard et importable)
 //!   rangé dans `<données de l'application>/private_maps/`, avec le style, les icônes et les polices de la carte privée (`style/`).
 //! - Règle par tuile : toute tuile qui touche une zone est lue sur le disque, ou renvoyée vide si elle manque. L'interface ne la demande jamais
 //!   au fournisseur (voir `get_private_tile` et src/map-tile-protocol.js).
-//! - Téléchargement (création, mise à jour) : selon les règles d'OpenFreeMap pour l'usage hors ligne (3 000 tuiles ou 50 Mo au plus par
+//! - Téléchargement (création, mise à jour) : selon les règles d'`OpenFreeMap` pour l'usage hors ligne (3 000 tuiles ou 50 Mo au plus par
 //!   téléchargement, 4 requêtes en parallèle, User-Agent propre à l'application), refusé en mode hors ligne. Tâche de la file (progression par
-//!   « scan-progress », arrêt par cancel_scan) ; le fichier n'est remplacé qu'une fois le téléchargement terminé.
+//!   « scan-progress », arrêt par `cancel_scan`) ; le fichier n'est remplacé qu'une fois le téléchargement terminé.
 
 use serde::{Deserialize, Serialize};
 use std::collections::{HashMap, HashSet};
@@ -20,7 +20,7 @@ use tauri::{Emitter, State};
 use crate::AppState;
 
 const PROVIDER: &str = "https://tiles.openfreemap.org";
-/// TileJSON du jeu de tuiles vectorielles : donne l'adresse versionnée des tuiles (renouvelée chaque semaine par le fournisseur).
+/// `TileJSON` du jeu de tuiles vectorielles : donne l'adresse versionnée des tuiles (renouvelée chaque semaine par le fournisseur).
 const TILEJSON_URL: &str = "https://tiles.openfreemap.org/planet";
 /// Styles enregistrés pour la carte privée (thème clair et thème sombre, voir src/map-config.js).
 const STYLES: [&str; 2] = ["liberty", "fiord"];
@@ -33,7 +33,7 @@ pub const MAX_BYTES: u64 = 50 * 1024 * 1024;
 const PARALLEL_REQUESTS: usize = 4;
 /// Niveaux de détail proposés (zoom maximal téléchargé) : Ville, Quartier, Rues.
 pub const DETAIL_ZOOMS: [u8; 3] = [12, 13, 14];
-/// Zoom maximal d'un fichier MBTiles importé. Le fournisseur n'a rien au-delà du niveau 14 (tuiles vides) : seuls les fichiers importés peuvent
+/// Zoom maximal d'un fichier `MBTiles` importé. Le fournisseur n'a rien au-delà du niveau 14 (tuiles vides) : seuls les fichiers importés peuvent
 /// aller au niveau 15 ; la carte agrandit ensuite les tuiles sans en charger (voir src/map-config.js, mapMaxZoom).
 const MAX_IMPORT_ZOOM: u8 = 15;
 /// Estimation de la taille avant téléchargement (la vraie taille est mesurée après), d'après une zone urbaine téléchargée : les tuiles des
@@ -53,7 +53,7 @@ fn user_agent() -> String {
 // ---------------------------------------------------------------------------
 
 /// Forme d'une zone : cercle (centre et rayon en mètres), polygone (sommets [latitude, longitude], sans répéter le premier) ou ensemble de
-/// tuiles (forme réelle d'un fichier MBTiles importé : à `zoom`, plages `[y, x0, x1]` de tuiles présentes, bornes comprises).
+/// tuiles (forme réelle d'un fichier `MBTiles` importé : à `zoom`, plages `[y, x0, x1]` de tuiles présentes, bornes comprises).
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
 #[serde(tag = "kind", rename_all = "lowercase")]
 pub enum ZoneGeometry {
@@ -134,7 +134,7 @@ impl ZoneGeometry {
         }
     }
 
-    /// Contour affiché d'une forme en tuiles : multipolygone GeoJSON ([polygone][anneau][longitude, latitude], anneaux fermés), sans les
+    /// Contour affiché d'une forme en tuiles : multipolygone `GeoJSON` ([polygone][anneau][longitude, latitude], anneaux fermés), sans les
     /// arêtes entre tuiles voisines. None pour les autres formes (dessinées d'après leurs sommets).
     pub fn outline(&self) -> Option<Vec<Vec<Vec<[f64; 2]>>>> {
         match self {
@@ -209,8 +209,7 @@ fn tiles_outline(zoom: u8, rows: &[[u32; 3]]) -> Vec<Vec<Vec<[f64; 2]>>> {
         while next.get(&start).is_some_and(|edges| !edges.is_empty()) {
             let mut ring = vec![start];
             let mut current = start;
-            loop {
-                let Some(to) = next.get_mut(&current).and_then(|edges| edges.pop()) else { break; };
+            while let Some(to) = next.get_mut(&current).and_then(std::vec::Vec::pop) {
                 if to == start { break; }
                 ring.push(to);
                 current = to;
@@ -246,7 +245,7 @@ fn tiles_outline(zoom: u8, rows: &[[u32; 3]]) -> Vec<Vec<Vec<[f64; 2]>>> {
     for hole in &holes {
         // Un point juste à côté du milieu de la première arête du trou : l'anneau extérieur le plus petit qui le contient est son parent.
         let (a, b) = (hole[0], hole[1]);
-        let (px, py) = ((f64::from(a.0) + f64::from(b.0)) / 2.0, (f64::from(a.1) + f64::from(b.1)) / 2.0 + 0.001);
+        let (px, py) = (f64::midpoint(f64::from(a.0), f64::from(b.0)), f64::midpoint(f64::from(a.1), f64::from(b.1)) + 0.001);
         let parent = outers
             .iter()
             .enumerate()
@@ -365,10 +364,10 @@ pub struct PrivateZone {
     pub id: i64,
     pub name: String,
     pub geometry: ZoneGeometry,
-    /// Contour d'une forme en tuiles (multipolygone GeoJSON), prêt à dessiner ; absent pour un cercle ou un polygone.
+    /// Contour d'une forme en tuiles (multipolygone `GeoJSON`), prêt à dessiner ; absent pour un cercle ou un polygone.
     pub outline: Option<Vec<Vec<Vec<[f64; 2]>>>>,
     pub max_zoom: u8,
-    /// « download » (téléchargée depuis le fournisseur) ou « import » (fichier MBTiles importé).
+    /// « download » (téléchargée depuis le fournisseur) ou « import » (fichier `MBTiles` importé).
     pub source: String,
     pub tile_count: i64,
     /// Tuiles qui n'ont pas pu être téléchargées (zone incomplète : la carte y reste vide).
@@ -429,7 +428,7 @@ static OUTLINES: Mutex<Option<HashMap<String, Option<Vec<Vec<Vec<[f64; 2]>>>>>>>
 
 fn cached_outline(json: &str, geometry: &ZoneGeometry) -> Option<Vec<Vec<Vec<[f64; 2]>>>> {
     if !matches!(geometry, ZoneGeometry::Tiles { .. }) { return None; }
-    let mut cache = OUTLINES.lock().unwrap_or_else(|poisoned| poisoned.into_inner());
+    let mut cache = OUTLINES.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
     let cache = cache.get_or_insert_with(HashMap::new);
     if let Some(found) = cache.get(json) { return found.clone(); }
     if cache.len() >= 16 { cache.clear(); }
@@ -450,10 +449,10 @@ fn get_zone(conn: &rusqlite::Connection, id: i64) -> Result<PrivateZone, String>
     conn.query_row(&format!("SELECT {ZONE_COLUMNS} FROM private_zones WHERE id = ?1"), [id], zone_from_row).map_err(|e| e.to_string())
 }
 
-/// Zones chargées en mémoire pour la règle par tuile (relues à chaque changement) et connexions ouvertes sur leurs fichiers MBTiles.
+/// Zones chargées en mémoire pour la règle par tuile (relues à chaque changement) et connexions ouvertes sur leurs fichiers `MBTiles`.
 struct LoadedZone {
     id: i64,
-    /// Nom du fichier MBTiles de la zone (voir zone_file_name).
+    /// Nom du fichier `MBTiles` de la zone (voir `zone_file_name`).
     file: String,
     /// Zoom maximal téléchargé (niveau de détail).
     max_zoom: u8,
@@ -467,7 +466,7 @@ static TILE_FILES: Mutex<Option<HashMap<i64, rusqlite::Connection>>> = Mutex::ne
 
 pub fn reload_zones(conn: &rusqlite::Connection) -> Result<(), String> {
     let loaded = load_zones(conn)?;
-    *ZONES.write().unwrap_or_else(|poisoned| poisoned.into_inner()) = loaded;
+    *ZONES.write().unwrap_or_else(std::sync::PoisonError::into_inner) = loaded;
     Ok(())
 }
 
@@ -486,7 +485,7 @@ fn load_zones(conn: &rusqlite::Connection) -> Result<Vec<LoadedZone>, String> {
 
 /// Ferme la connexion ouverte sur le fichier d'une zone (avant de le remplacer ou de le supprimer).
 fn close_tile_file(id: i64) {
-    if let Some(files) = TILE_FILES.lock().unwrap_or_else(|poisoned| poisoned.into_inner()).as_mut() { files.remove(&id); }
+    if let Some(files) = TILE_FILES.lock().unwrap_or_else(std::sync::PoisonError::into_inner).as_mut() { files.remove(&id); }
 }
 
 /// Lieu privé : zoom maximal disponible au point, le plus fin des zones privées qui le contiennent (zones qui se recoupent : le détail présent
@@ -505,8 +504,8 @@ const RESERVED_FILE_NAMES: [&str; 22] = [
     "lpt1", "lpt2", "lpt3", "lpt4", "lpt5", "lpt6", "lpt7", "lpt8", "lpt9",
 ];
 
-/// Nom du fichier MBTiles d'une zone, tiré de son nom : minuscules, espaces remplacés par « _ », caractères interdits dans un nom de fichier
-/// (Windows compris) retirés. Deux zones ne peuvent pas avoir le même nom de fichier (voir check_unique_name). Même règle dans
+/// Nom du fichier `MBTiles` d'une zone, tiré de son nom : minuscules, espaces remplacés par « _ », caractères interdits dans un nom de fichier
+/// (Windows compris) retirés. Deux zones ne peuvent pas avoir le même nom de fichier (voir `check_unique_name`). Même règle dans
 /// src/private-zones.js (zoneFileName), pour signaler un doublon pendant la saisie.
 pub fn zone_file_name(name: &str) -> Result<String, String> {
     let slug: String = name
@@ -543,7 +542,7 @@ pub fn migrate_legacy_files(dir: &Path, conn: &rusqlite::Connection) {
 
 /// Ferme toutes les connexions aux fichiers de tuiles (avant de déplacer le dossier de données).
 pub fn close_all_tile_files() {
-    *TILE_FILES.lock().unwrap_or_else(|poisoned| poisoned.into_inner()) = None;
+    *TILE_FILES.lock().unwrap_or_else(std::sync::PoisonError::into_inner) = None;
 }
 
 /// Nom libre : aucune autre zone (sauf `except_id`, la zone renommée) n'a le même nom de fichier.
@@ -554,7 +553,7 @@ fn check_unique_name(conn: &rusqlite::Connection, name: &str, except_id: Option<
 }
 
 fn now_millis() -> i64 {
-    std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map(|elapsed| elapsed.as_millis() as i64).unwrap_or(0)
+    std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map_or(0, |elapsed| elapsed.as_millis() as i64)
 }
 
 // ---------------------------------------------------------------------------
@@ -580,7 +579,7 @@ fn tms_row(z: u8, y: u32) -> u32 {
     (1u32 << z) - 1 - y
 }
 
-/// Tuile d'un fichier MBTiles : Some(octets) si présente (éventuellement vide : tuile connue sans contenu), None si absente.
+/// Tuile d'un fichier `MBTiles` : Some(octets) si présente (éventuellement vide : tuile connue sans contenu), None si absente.
 fn read_tile(conn: &rusqlite::Connection, z: u8, x: u32, y: u32) -> Option<Vec<u8>> {
     conn.query_row(
         "SELECT tile_data FROM tiles WHERE zoom_level = ?1 AND tile_column = ?2 AND tile_row = ?3",
@@ -603,8 +602,8 @@ pub enum TileAnswer {
 }
 
 pub fn private_tile(dir: &Path, z: u8, x: u32, y: u32) -> TileAnswer {
-    let zones = ZONES.read().unwrap_or_else(|poisoned| poisoned.into_inner());
-    let mut files = TILE_FILES.lock().unwrap_or_else(|poisoned| poisoned.into_inner());
+    let zones = ZONES.read().unwrap_or_else(std::sync::PoisonError::into_inner);
+    let mut files = TILE_FILES.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
     private_tile_in(&zones, files.get_or_insert_with(HashMap::new), dir, z, x, y)
 }
 
@@ -719,7 +718,7 @@ fn download_style_resources(style_dir: &Path, cancel: &AtomicBool) -> Result<(),
     }
 }
 
-/// Adresse des tuiles vectorielles (modèle `{z}/{x}/{y}`), lue dans le TileJSON du fournisseur.
+/// Adresse des tuiles vectorielles (modèle `{z}/{x}/{y}`), lue dans le `TileJSON` du fournisseur.
 fn tile_url_template() -> Result<String, String> {
     let bytes = http_get(TILEJSON_URL)?.ok_or("TileJSON introuvable")?;
     let json: serde_json::Value = serde_json::from_slice(&bytes).map_err(|e| e.to_string())?;
@@ -735,8 +734,8 @@ struct DownloadOutcome {
     over_size: bool,
 }
 
-/// Télécharge `tiles` dans le fichier MBTiles `conn` : 4 requêtes en parallèle, écriture par le fil appelant. S'arrête à la demande (`cancel`)
-/// ou quand le total dépasse MAX_BYTES (zone incomplète).
+/// Télécharge `tiles` dans le fichier `MBTiles` `conn` : 4 requêtes en parallèle, écriture par le fil appelant. S'arrête à la demande (`cancel`)
+/// ou quand le total dépasse `MAX_BYTES` (zone incomplète).
 fn download_tiles(
     conn: &mut rusqlite::Connection,
     template: &str,
@@ -855,7 +854,7 @@ pub fn add_private_zone(state: State<'_, AppState>, name: String, geometry: Zone
 }
 
 /// Télécharge (ou met à jour) les tuiles d'une zone, et les ressources du style si `refresh_style`. Tâche de la file : progression par
-/// « scan-progress », arrêt par cancel_scan. L'ancien fichier n'est remplacé qu'à la fin ; un arrêt le laisse intact.
+/// « scan-progress », arrêt par `cancel_scan`. L'ancien fichier n'est remplacé qu'à la fin ; un arrêt le laisse intact.
 #[tauri::command]
 pub async fn download_private_zone(app: tauri::AppHandle, state: State<'_, AppState>, zone_id: i64, task_id: String, refresh_style: bool) -> Result<PrivateZone, String> {
     let dir = private_maps_dir(&state);
@@ -900,7 +899,7 @@ pub async fn download_private_zone(app: tauri::AppHandle, state: State<'_, AppSt
             let _ = fs::remove_file(&partial);
             error.to_string()
         })?;
-        let size = fs::metadata(&target).map(|metadata| metadata.len() as i64).unwrap_or(0);
+        let size = fs::metadata(&target).map_or(0, |metadata| metadata.len() as i64);
         let status = if outcome.missing == 0 && !outcome.over_size { "ready" } else { "incomplete" };
         conn.execute(
             "UPDATE private_zones SET tile_count = ?1, missing_count = ?2, size_bytes = ?3, updated_at = ?4, status = ?5 WHERE id = ?6",
@@ -921,7 +920,7 @@ pub async fn download_private_zone(app: tauri::AppHandle, state: State<'_, AppSt
     outcome
 }
 
-/// Renomme la zone et son fichier de tuiles (le fichier suit le nom, voir zone_file_name).
+/// Renomme la zone et son fichier de tuiles (le fichier suit le nom, voir `zone_file_name`).
 #[tauri::command(async)]
 pub fn rename_private_zone(state: State<'_, AppState>, zone_id: i64, name: String) -> Result<PrivateZone, String> {
     let name = clean_name(&name)?;
@@ -956,7 +955,7 @@ pub fn delete_private_zone(state: State<'_, AppState>, zone_id: i64) -> Result<(
     Ok(())
 }
 
-/// Vérifie un fichier MBTiles à importer : tuiles vectorielles (`format` = pbf) et au moins une tuile. Renvoie son zoom maximal et ses bornes
+/// Vérifie un fichier `MBTiles` à importer : tuiles vectorielles (`format` = pbf) et au moins une tuile. Renvoie son zoom maximal et ses bornes
 /// (ouest, sud, est, nord) si le fichier les donne.
 pub fn inspect_mbtiles(path: &Path) -> Result<(u8, Option<[f64; 4]>), String> {
     let conn = rusqlite::Connection::open_with_flags(path, rusqlite::OpenFlags::SQLITE_OPEN_READ_ONLY).map_err(|_| "invalid_mbtiles".to_string())?;
@@ -971,7 +970,7 @@ pub fn inspect_mbtiles(path: &Path) -> Result<(u8, Option<[f64; 4]>), String> {
     Ok((max_zoom, bounds))
 }
 
-/// Plus fin zoom (jusqu'à FOOTPRINT_MAX_ZOOM) dont le fichier a des tuiles sans en avoir plus de FOOTPRINT_MAX_CELLS : ses tuiles forment la forme
+/// Plus fin zoom (jusqu'à `FOOTPRINT_MAX_ZOOM`) dont le fichier a des tuiles sans en avoir plus de `FOOTPRINT_MAX_CELLS` : ses tuiles forment la forme
 /// de la zone. Le plus fin possible : aux zooms larges, un fichier dont le détail est partiel (bords d'un pays) a des tuiles bien au-delà de
 /// la zone réellement couverte. Requêtes sur l'index (zoom, colonne, rangée) seulement : les blobs de tuiles ne sont pas lus.
 const FOOTPRINT_MAX_ZOOM: u8 = 14;
@@ -1003,7 +1002,7 @@ pub fn mbtiles_footprint(path: &Path, max_zoom: u8) -> Option<ZoneGeometry> {
             }
         }
         let shape = ZoneGeometry::Tiles { zoom, rows };
-        return shape.validate().ok().map(|_| shape);
+        return shape.validate().ok().map(|()| shape);
     }
     None
 }
@@ -1022,7 +1021,7 @@ pub fn recompute_private_zone_shape(state: State<'_, AppState>, zone_id: i64) ->
     get_zone(&conn, zone_id)
 }
 
-/// Importe un fichier MBTiles obtenu ailleurs (aucune requête réseau) : copié dans le dossier des zones. Sans `geometry`, la zone est le
+/// Importe un fichier `MBTiles` obtenu ailleurs (aucune requête réseau) : copié dans le dossier des zones. Sans `geometry`, la zone est le
 /// rectangle des bornes du fichier.
 #[tauri::command(async)]
 pub fn import_private_zone(state: State<'_, AppState>, path: String, name: String, geometry: Option<ZoneGeometry>) -> Result<PrivateZone, String> {
@@ -1033,12 +1032,9 @@ pub fn import_private_zone(state: State<'_, AppState>, path: String, name: Strin
     let geometry = match geometry {
         Some(geometry) => geometry,
         // Forme réelle du fichier (tuiles présentes) ; à défaut, le rectangle de ses bornes.
-        None => match mbtiles_footprint(&source, max_zoom) {
-            Some(shape) => shape,
-            None => {
-                let [west, south, east, north] = bounds.ok_or("mbtiles_without_bounds")?;
-                ZoneGeometry::Polygon { points: vec![[south, west], [south, east], [north, east], [north, west]] }
-            }
+        None => if let Some(shape) = mbtiles_footprint(&source, max_zoom) { shape } else {
+            let [west, south, east, north] = bounds.ok_or("mbtiles_without_bounds")?;
+            ZoneGeometry::Polygon { points: vec![[south, west], [south, east], [north, east], [north, west]] }
         },
     };
     geometry.validate()?;
@@ -1068,7 +1064,7 @@ pub fn import_private_zone(state: State<'_, AppState>, path: String, name: Strin
     get_zone(&conn, id)
 }
 
-/// Tuile pour la carte (règle par tuile, voir TileAnswer), premier octet :
+/// Tuile pour la carte (règle par tuile, voir `TileAnswer`), premier octet :
 /// 0 : aucune zone (l'interface peut la demander au fournisseur, selon ses propres règles) ;
 /// 1 + tuile : zone privée, tuile lue sur le disque (rien si elle manque), jamais demandée au fournisseur ;
 /// 2 + tuile : carte hors ligne, tuile lue sur le disque ;
@@ -1143,10 +1139,10 @@ pub fn reset_map_style(state: State<'_, AppState>) -> Result<(), String> {
 }
 
 /// Pour chaque position ([latitude, longitude]) : None si elle n'est dans aucune zone privée, sinon le zoom maximal disponible à cet endroit
-/// (voir private_zoom_in), qui plafonne la carte en mode strict.
+/// (voir `private_zoom_in`), qui plafonne la carte en mode strict.
 #[tauri::command(async)]
 pub fn locate_private_points(points: Vec<[f64; 2]>) -> Vec<Option<u8>> {
-    let zones = ZONES.read().unwrap_or_else(|poisoned| poisoned.into_inner());
+    let zones = ZONES.read().unwrap_or_else(std::sync::PoisonError::into_inner);
     points.iter().map(|point| private_zoom_in(&zones, point[0], point[1])).collect()
 }
 

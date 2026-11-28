@@ -629,7 +629,7 @@ fn default_subfolder_options(dest: &Path, mode: &str) -> ImportSubfolderOptions 
 }
 
 fn make_import_item(path: &Path, rel: &str, kind: &str, mtime: i64, date_taken: &str) -> ImportCopyItem {
-    let size = fs::metadata(path).map(|m| m.len()).unwrap_or(0);
+    let size = fs::metadata(path).map_or(0, |m| m.len());
     let filename = path
         .file_name()
         .map(|n| n.to_string_lossy().into_owned())
@@ -706,7 +706,7 @@ fn video_sha256_failure_in_replace_mode_preserves_original_and_leaves_no_temp() 
 
     let leftover: Vec<String> = fs::read_dir(lib.path())
         .unwrap()
-        .filter_map(|e| e.ok())
+        .filter_map(std::result::Result::ok)
         .map(|e| e.file_name().to_string_lossy().into_owned())
         .filter(|n| n.starts_with(".photoboggan-"))
         .collect();
@@ -777,7 +777,7 @@ fn video_sha256_failure_in_rename_mode_leaves_no_file_no_temp_and_no_empty_dir()
     );
     let entries: Vec<String> = fs::read_dir(lib.path())
         .unwrap()
-        .filter_map(|e| e.ok())
+        .filter_map(std::result::Result::ok)
         .map(|e| e.file_name().to_string_lossy().into_owned())
         .collect();
     assert!(entries.is_empty(), "no files or temp entries should remain: {entries:?}");

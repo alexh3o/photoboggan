@@ -33,7 +33,7 @@ pub const PRECOMPUTE_RUNNING_ERROR: &str = "hash_precompute_running";
 static CURRENT_PRECOMPUTE: Mutex<Option<Arc<AtomicBool>>> = Mutex::new(None);
 
 fn current_precompute() -> std::sync::MutexGuard<'static, Option<Arc<AtomicBool>>> {
-    CURRENT_PRECOMPUTE.lock().unwrap_or_else(|poisoned| poisoned.into_inner())
+    CURRENT_PRECOMPUTE.lock().unwrap_or_else(std::sync::PoisonError::into_inner)
 }
 
 struct PrecomputeSlot;
@@ -83,7 +83,7 @@ struct ChunkActiveGuard;
 impl ChunkActiveGuard {
     fn enter() -> Self {
         let (lock, _) = chunk_gate();
-        *lock.lock().unwrap_or_else(|poisoned| poisoned.into_inner()) = true;
+        *lock.lock().unwrap_or_else(std::sync::PoisonError::into_inner) = true;
         ChunkActiveGuard
     }
 }
@@ -91,7 +91,7 @@ impl ChunkActiveGuard {
 impl Drop for ChunkActiveGuard {
     fn drop(&mut self) {
         let (lock, condvar) = chunk_gate();
-        *lock.lock().unwrap_or_else(|poisoned| poisoned.into_inner()) = false;
+        *lock.lock().unwrap_or_else(std::sync::PoisonError::into_inner) = false;
         condvar.notify_all();
     }
 }
@@ -99,14 +99,14 @@ impl Drop for ChunkActiveGuard {
 /// Waits until any active precompute chunk finishes and commits before an interactive duplicate search reads the cache.
 pub(crate) fn wait_for_precompute_chunk(cancel: &AtomicBool) {
     let (lock, condvar) = chunk_gate();
-    let mut active = lock.lock().unwrap_or_else(|poisoned| poisoned.into_inner());
+    let mut active = lock.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
     while *active {
         if cancel.load(Ordering::Relaxed) {
             return;
         }
         let (guard, _) = condvar
             .wait_timeout(active, Duration::from_millis(100))
-            .unwrap_or_else(|poisoned| poisoned.into_inner());
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
         active = guard;
     }
 }
@@ -313,12 +313,12 @@ pub(crate) fn run_precompute(
     }
     let total_eligible = rows.len();
 
-    let exact_ok = if mode.exact != ExactMode::None {
-        exact_uptodate_set(&conn, mode.exact == ExactMode::Full)?
-    } else {
+    let exact_ok = if mode.exact == ExactMode::None {
         HashSet::new()
+    } else {
+        exact_uptodate_set(&conn, mode.exact == ExactMode::Full)?
     };
-    let exact_fail = if mode.exact != ExactMode::None { exact_failed_set(&conn)? } else { HashSet::new() };
+    let exact_fail = if mode.exact == ExactMode::None { HashSet::new() } else { exact_failed_set(&conn)? };
     let sim_ok = if mode.similarity { similarity_uptodate_set(&conn)? } else { HashSet::new() };
     let sim_fail = if mode.similarity { similarity_failed_set(&conn)? } else { HashSet::new() };
 
@@ -367,14 +367,14 @@ pub(crate) fn run_precompute(
             break;
         }
 
-        let _chunk_guard = ChunkActiveGuard::enter();
+        let chunk_guard = ChunkActiveGuard::enter();
         let chunk_started = Instant::now();
 
         // Re-check DB in case an interactive duplicate search computed some of these while we were paused.
-        let fresh_exact_ok = if mode.exact != ExactMode::None {
-            exact_uptodate_set(&conn, mode.exact == ExactMode::Full)?
-        } else {
+        let fresh_exact_ok = if mode.exact == ExactMode::None {
             HashSet::new()
+        } else {
+            exact_uptodate_set(&conn, mode.exact == ExactMode::Full)?
         };
         let fresh_sim_ok = if mode.similarity { similarity_uptodate_set(&conn)? } else { HashSet::new() };
 
@@ -511,7 +511,7 @@ pub(crate) fn run_precompute(
             }
         }
         tx.commit().map_err(|e| e.to_string())?;
-        drop(_chunk_guard);
+        drop(chunk_guard);
 
         busy += chunk_started.elapsed();
         done += chunk.len();
@@ -563,7 +563,7 @@ pub async fn precompute_hashes(
                 let _slot = slot;
                 crate::semantic::lower_thread_priority();
                 let emit = |mut progress: PrecomputeProgress| {
-                    progress.task_id = worker_task_id.clone();
+                    progress.task_id.clone_from(&worker_task_id);
                     let _ = app.emit("scan-progress", progress);
                 };
                 let _ = sender.send(run_precompute(
@@ -625,7 +625,7 @@ pub(crate) fn compute_work_count(
         set.extend(similarity_failed_set(conn)?);
         set
     } else {
-        let mode: i64 = if ignore_metadata { 1 } else { 0 };
+        let mode: i64 = i64::from(ignore_metadata);
         let mut stmt = conn
             .prepare(
                 "SELECT h.photo_id FROM photo_hashes h JOIN photos p ON p.id = h.photo_id

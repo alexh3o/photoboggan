@@ -24,7 +24,7 @@ use jpeg_encoder::{ColorType, Encoder};
 pub const THUMBNAIL_QUALITY_NORMAL: u8 = 60;
 pub const THUMBNAIL_QUALITY_HIGH: u8 = 84;
 
-/// Thumbnail quality in use (false = normal, the default). Set at startup from config.json and by set_thumbnail_quality;
+/// Thumbnail quality in use (false = normal, the default). Set at startup from config.json and by `set_thumbnail_quality`;
 /// existing thumbnails are not rewritten when it changes.
 static HIGH_QUALITY_THUMBNAILS: AtomicBool = AtomicBool::new(false);
 
@@ -161,7 +161,7 @@ pub fn jpeg_size(path: &Path) -> Result<ThumbnailSize, String> {
     let mut decoder = Decoder::new(BufReader::new(file));
     decoder.read_info().map_err(|error| format!("Miniature illisible : {error}"))?;
     let info = decoder.info().ok_or("Missing JPEG header")?;
-    Ok(ThumbnailSize { width: info.width as u32, height: info.height as u32 })
+    Ok(ThumbnailSize { width: u32::from(info.width), height: u32::from(info.height) })
 }
 
 use std::io::{Cursor, Read, Seek, SeekFrom};
@@ -183,7 +183,7 @@ pub fn extract_raw_preview(source: &Path) -> Result<Vec<u8>, String> {
         file.seek(SeekFrom::Start(0x54)).map_err(|e| e.to_string())?;
         let mut buf = [0u8; 8];
         file.read_exact(&mut buf).map_err(|e| e.to_string())?;
-        let offset = u32::from_be_bytes([buf[0], buf[1], buf[2], buf[3]]) as u64;
+        let offset = u64::from(u32::from_be_bytes([buf[0], buf[1], buf[2], buf[3]]));
         let length = u32::from_be_bytes([buf[4], buf[5], buf[6], buf[7]]) as usize;
         // Offset et longueur viennent du fichier : un en-tête corrompu ne doit pas provoquer une allocation énorme.
         let file_len = file.metadata().map_err(|e| e.to_string())?.len();
@@ -225,7 +225,7 @@ fn tiff_rgb_thumbnail_jpeg(file: &mut File) -> Option<Vec<u8>> {
     let little = match &header[..4] { b"II* " => true, b"MM *" => false, _ => return None };
     let short = |b: [u8; 2]| if little { u16::from_le_bytes(b) } else { u16::from_be_bytes(b) };
     let long = |b: [u8; 4]| if little { u32::from_le_bytes(b) } else { u32::from_be_bytes(b) };
-    file.seek(SeekFrom::Start(long([header[4], header[5], header[6], header[7]]) as u64)).ok()?;
+    file.seek(SeekFrom::Start(u64::from(long([header[4], header[5], header[6], header[7]])))).ok()?;
     let mut count = [0u8; 2];
     file.read_exact(&mut count).ok()?;
     let mut entries = vec![0u8; short(count) as usize * 12];
@@ -240,11 +240,11 @@ fn tiff_rgb_thumbnail_jpeg(file: &mut File) -> Option<Vec<u8>> {
             entry[8..8 + size * n].to_vec()
         } else {
             let mut data = vec![0u8; size * n];
-            file.seek(SeekFrom::Start(long([entry[8], entry[9], entry[10], entry[11]]) as u64)).ok()?;
+            file.seek(SeekFrom::Start(u64::from(long([entry[8], entry[9], entry[10], entry[11]])))).ok()?;
             file.read_exact(&mut data).ok()?;
             data
         };
-        Some(raw.chunks_exact(size).map(|c| if size == 2 { short([c[0], c[1]]) as u32 } else { long([c[0], c[1], c[2], c[3]]) }).collect())
+        Some(raw.chunks_exact(size).map(|c| if size == 2 { u32::from(short([c[0], c[1]])) } else { long([c[0], c[1], c[2], c[3]]) }).collect())
     };
     let (width, height) = (*read_values(0x100)?.first()? as usize, *read_values(0x101)?.first()? as usize);
     let compression = read_values(0x103)?.first().copied()?;
@@ -258,8 +258,8 @@ fn tiff_rgb_thumbnail_jpeg(file: &mut File) -> Option<Vec<u8>> {
     if offsets.len() != lengths.len() || lengths.iter().map(|&l| l as usize).sum::<usize>() != width * height * 3 { return None; }
     let mut rgb = Vec::with_capacity(width * height * 3);
     for (offset, length) in offsets.iter().zip(&lengths) {
-        file.seek(SeekFrom::Start(*offset as u64)).ok()?;
-        file.by_ref().take(*length as u64).read_to_end(&mut rgb).ok()?;
+        file.seek(SeekFrom::Start(u64::from(*offset))).ok()?;
+        file.by_ref().take(u64::from(*length)).read_to_end(&mut rgb).ok()?;
     }
     if rgb.len() != width * height * 3 { return None; }
     let mut jpeg = Vec::new();
@@ -394,7 +394,7 @@ fn find_cr3_preview(file: &mut File) -> Result<Vec<u8>, String> {
 ///////
 
 
-/// Décode un flux JPEG en RGB avec réduction DCT d'échelle proportionnelle à max_side.
+/// Décode un flux JPEG en RGB avec réduction DCT d'échelle proportionnelle à `max_side`.
 pub(crate) fn decode_scaled_jpeg_reader<R: Read>(reader: R, max_side: usize) -> Result<(Vec<u8>, usize, usize), String> {
     let mut decoder = Decoder::new(reader);
     decoder.read_info().map_err(|error| format!("Unreadable JPEG: {error}"))?;
@@ -452,7 +452,7 @@ fn lenient_exif(result: Result<exif::Exif, exif::Error>) -> Option<exif::Exif> {
 /// HEIC / HEIF keep their EXIF tag only: the callers that decode them already skip it (the container rotation is applied by the decoder).
 pub(crate) fn read_orientation(source: &Path) -> u32 {
     if is_raw_path(source) {
-        return extract_raw_preview(source).map(|jpeg| raw_display_orientation(source, &jpeg)).unwrap_or(1);
+        return extract_raw_preview(source).map_or(1, |jpeg| raw_display_orientation(source, &jpeg));
     }
     match crate::orientation::kind_of(source) {
         crate::orientation::Kind::Fixed => container_orientation(source).unwrap_or(1),
@@ -471,7 +471,7 @@ pub(crate) fn raw_display_orientation(source: &Path, jpeg: &[u8]) -> u32 {
     crate::orientation::raw_preview_orientation(preview, container_orientation(source).unwrap_or(1), crate::exif::read_xmp_orientation(source))
 }
 
-/// RAW extensions (lowercase): the single backend list, used by the catalogue (library_sync), previews, faces, resize, content search.
+/// RAW extensions (lowercase): the single backend list, used by the catalogue (`library_sync`), previews, faces, resize, content search.
 /// The frontend has its own copy (`RAW_EXTENSIONS` in src/format-filters.js), kept equal by the test `raw_extensions_match_the_frontend`.
 pub(crate) const RAW_EXTENSIONS: [&str; 11] = ["arw", "cr2", "cr3", "nef", "nrw", "dng", "raf", "orf", "rw2", "pef", "raw"];
 
@@ -543,8 +543,8 @@ pub(crate) fn read_exif_sources(source: &Path) -> Vec<exif::Exif> {
     }
     let mut header = [0u8; 0x5c];
     if file.read_exact(&mut header).is_ok() && header.starts_with(b"FUJIFILMCCD-RAW") {
-        let offset = u32::from_be_bytes([header[0x54], header[0x55], header[0x56], header[0x57]]) as u64;
-        let length = u32::from_be_bytes([header[0x58], header[0x59], header[0x5a], header[0x5b]]) as u64;
+        let offset = u64::from(u32::from_be_bytes([header[0x54], header[0x55], header[0x56], header[0x57]]));
+        let length = u64::from(u32::from_be_bytes([header[0x58], header[0x59], header[0x5a], header[0x5b]]));
         // Seul le début du JPEG est lu : son EXIF précède les données de l'image.
         let mut jpeg = Vec::new();
         let read = file.seek(SeekFrom::Start(offset)).and_then(|_| file.by_ref().take(length.min(1024 * 1024)).read_to_end(&mut jpeg));
@@ -575,7 +575,7 @@ pub(crate) fn raw_orientation(source: &Path, jpeg: &[u8]) -> u32 {
     let own = lenient_exif(Reader::new().continue_on_error(true).read_from_container(&mut Cursor::new(jpeg))).as_ref().and_then(orientation_of);
     let container = container_orientation(source).unwrap_or(1);
     let mut decoder = Decoder::new(Cursor::new(jpeg));
-    let portrait_preview = decoder.read_info().ok().and_then(|_| decoder.info()).is_some_and(|info| info.height > info.width);
+    let portrait_preview = decoder.read_info().ok().and_then(|()| decoder.info()).is_some_and(|info| info.height > info.width);
     resolve_raw_preview_orientation(own, container, portrait_preview)
 }
 
@@ -647,9 +647,9 @@ pub(crate) fn resize_area(source: &[u8], source_width: usize, source_height: usi
             let mut sums = [0f32; 3];
             for (offset, weight) in weights.iter().enumerate() {
                 let pixel = (first + offset) * 3;
-                sums[0] += row[pixel] as f32 * weight;
-                sums[1] += row[pixel + 1] as f32 * weight;
-                sums[2] += row[pixel + 2] as f32 * weight;
+                sums[0] += f32::from(row[pixel]) * weight;
+                sums[1] += f32::from(row[pixel + 1]) * weight;
+                sums[2] += f32::from(row[pixel + 2]) * weight;
             }
             let target = (y * width + x) * 3;
             intermediate[target..target + 3].copy_from_slice(&sums);
@@ -770,7 +770,7 @@ impl TiffEndian {
         let kind = self.u16(&raw[2..4]);
         let count = self.u32(&raw[4..8]) as usize;
         let val = if kind == 3 && count == 1 {
-            self.u16(&raw[8..10]) as u32
+            u32::from(self.u16(&raw[8..10]))
         } else {
             self.u32(&raw[8..12])
         };
@@ -805,7 +805,7 @@ fn tiff_file_ifd(file: &mut File, file_len: u64, base: u64, rel: u64, e: TiffEnd
     let has_next = abs + 2 + (count * 12 + 4) as u64 <= file_len;
     let slice = if has_next { &mut buf[..] } else { &mut buf[..count * 12] };
     file.read_exact(slice).ok()?;
-    let next = if has_next { e.u32(&buf[count * 12..]) as u64 } else { 0 };
+    let next = if has_next { u64::from(e.u32(&buf[count * 12..])) } else { 0 };
     buf.truncate(count * 12);
     Some((buf, next))
 }
@@ -814,7 +814,7 @@ fn extract_raf_preview_fast(file: &mut File, file_len: u64) -> Option<Vec<u8>> {
     file.seek(SeekFrom::Start(0x54)).ok()?;
     let mut buf = [0u8; 8];
     file.read_exact(&mut buf).ok()?;
-    let offset = u32::from_be_bytes([buf[0], buf[1], buf[2], buf[3]]) as u64;
+    let offset = u64::from(u32::from_be_bytes([buf[0], buf[1], buf[2], buf[3]]));
     let length = u32::from_be_bytes([buf[4], buf[5], buf[6], buf[7]]) as usize;
     if offset == 0 || length < 1000 || offset.checked_add(length as u64).is_none_or(|end| end > file_len) {
         return None;
@@ -838,7 +838,7 @@ fn extract_cr3_preview_fast(file: &mut File, file_len: u64) -> Option<Vec<u8>> {
         file.seek(SeekFrom::Start(pos)).ok()?;
         let mut hdr = [0u8; 8];
         file.read_exact(&mut hdr).ok()?;
-        let size32 = u32::from_be_bytes([hdr[0], hdr[1], hdr[2], hdr[3]]) as u64;
+        let size32 = u64::from(u32::from_be_bytes([hdr[0], hdr[1], hdr[2], hdr[3]]));
         let box_type = [hdr[4], hdr[5], hdr[6], hdr[7]];
         let (box_size, hdr_len) = if size32 == 1 {
             if pos + 16 > file_len {
@@ -868,7 +868,7 @@ fn extract_cr3_preview_fast(file: &mut File, file_len: u64) -> Option<Vec<u8>> {
                     file.seek(SeekFrom::Start(child_pos)).ok()?;
                     let mut chdr = [0u8; 8];
                     file.read_exact(&mut chdr).ok()?;
-                    let csize = u32::from_be_bytes([chdr[0], chdr[1], chdr[2], chdr[3]]) as u64;
+                    let csize = u64::from(u32::from_be_bytes([chdr[0], chdr[1], chdr[2], chdr[3]]));
                     if csize < 8 || child_pos + csize > box_end {
                         break;
                     }
@@ -899,7 +899,7 @@ fn extract_tiff_raw_preview_fast(file: &mut File, file_len: u64, tiff_base: u64)
     let mut header = [0u8; 8];
     file.read_exact(&mut header).ok()?;
     let (e, ifd0_u32) = TiffEndian::parse_header(&header)?;
-    let ifd0_rel = ifd0_u32 as u64;
+    let ifd0_rel = u64::from(ifd0_u32);
     let mut queue = vec![ifd0_rel];
     let mut visited = std::collections::HashSet::new();
     let mut candidates: Vec<(u64, usize)> = Vec::new();
@@ -929,9 +929,9 @@ fn extract_tiff_raw_preview_fast(file: &mut File, file_len: u64, tiff_base: u64)
         let mut strip_off: Option<u64> = None;
         let mut strip_len: Option<usize> = None;
 
-        for raw in entries.chunks_exact(12) {
+        for raw in entries.as_chunks::<12>().0 {
             let (tag, kind, n, val32) = e.entry(raw);
-            let val = val32 as u64;
+            let val = u64::from(val32);
             match tag {
                 0x0112 if is_ifd0 && n == 1 && (1..=8).contains(&val32) => ifd0_orientation = val32,
                 0x014A if kind == 4 || kind == 13 => {
@@ -944,8 +944,8 @@ fn extract_tiff_raw_preview_fast(file: &mut File, file_len: u64, tiff_base: u64)
                             {
                                 let mut sub_buf = vec![0u8; n * 4];
                                 if file.read_exact(&mut sub_buf).is_ok() {
-                                    for c in sub_buf.chunks_exact(4) {
-                                        queue.push(e.u32(c) as u64);
+                                    for c in sub_buf.as_chunks::<4>().0 {
+                                        queue.push(u64::from(e.u32(c)));
                                     }
                                 }
                             }
@@ -1035,7 +1035,7 @@ enum TiffSource<'a> {
     File { file: &'a mut File, file_len: u64, base: u64 },
 }
 
-impl<'a> TiffSource<'a> {
+impl TiffSource<'_> {
     fn read_ifd(&mut self, rel: u64, e: TiffEndian) -> Option<std::borrow::Cow<'_, [u8]>> {
         match self {
             Self::Slice(tiff) => tiff_slice_ifd(tiff, rel as usize, e).map(|(entries, _)| std::borrow::Cow::Borrowed(entries)),
@@ -1071,11 +1071,11 @@ fn read_tiff_exif_fields_with(e: TiffEndian, ifd0_rel: u64, mut src: TiffSource<
         if kind != 2 || !(10..=64).contains(&n) {
             return None;
         }
-        let bytes = src.read_bytes(val as u64, n)?;
+        let bytes = src.read_bytes(u64::from(val), n)?;
         clean_exif_date(&bytes)
     };
 
-    let Some(entries0) = src.read_ifd(ifd0_rel, e).map(|c| c.into_owned()) else {
+    let Some(entries0) = src.read_ifd(ifd0_rel, e).map(std::borrow::Cow::into_owned) else {
         return (String::new(), 1);
     };
 
@@ -1083,12 +1083,12 @@ fn read_tiff_exif_fields_with(e: TiffEndian, ifd0_rel: u64, mut src: TiffSource<
     let mut ifd0_date: Option<String> = None;
     let mut exif_ifd_rel: Option<u64> = None;
 
-    for raw in entries0.chunks_exact(12) {
+    for raw in entries0.as_chunks::<12>().0 {
         let (tag, _, n, val) = e.entry(raw);
         match tag {
             0x0112 if n == 1 && (1..=8).contains(&val) => orientation = val,
             0x0132 if ifd0_date.is_none() => ifd0_date = read_ascii(&mut src, raw),
-            0x8769 if n == 1 => exif_ifd_rel = Some(val as u64),
+            0x8769 if n == 1 => exif_ifd_rel = Some(u64::from(val)),
             _ => {}
         }
     }
@@ -1096,8 +1096,8 @@ fn read_tiff_exif_fields_with(e: TiffEndian, ifd0_rel: u64, mut src: TiffSource<
     let mut orig_date: Option<String> = None;
     let mut dig_date: Option<String> = None;
     if let Some(ex_rel) = exif_ifd_rel {
-        if let Some(entries_ex) = src.read_ifd(ex_rel, e).map(|c| c.into_owned()) {
-            for raw in entries_ex.chunks_exact(12) {
+        if let Some(entries_ex) = src.read_ifd(ex_rel, e).map(std::borrow::Cow::into_owned) {
+            for raw in entries_ex.as_chunks::<12>().0 {
                 match e.u16(&raw[0..2]) {
                     0x9003 if orig_date.is_none() => orig_date = read_ascii(&mut src, raw),
                     0x9004 if dig_date.is_none() => dig_date = read_ascii(&mut src, raw),
@@ -1114,7 +1114,7 @@ fn parse_tiff_slice_exif_fields(tiff: &[u8]) -> (String, u32) {
     let Some((e, ifd0_off)) = TiffEndian::parse_header(tiff) else {
         return (String::new(), 1);
     };
-    read_tiff_exif_fields_with(e, ifd0_off as u64, TiffSource::Slice(tiff))
+    read_tiff_exif_fields_with(e, u64::from(ifd0_off), TiffSource::Slice(tiff))
 }
 
 fn parse_jpeg_slice_exif_fields(head: &[u8]) -> Option<(String, u32)> {
@@ -1134,7 +1134,7 @@ fn read_tiff_file_exif_fields(file: &mut File, file_len: u64, tiff_base: u64) ->
     };
     read_tiff_exif_fields_with(
         e,
-        ifd0_rel as u64,
+        u64::from(ifd0_rel),
         TiffSource::File { file, file_len, base: tiff_base },
     )
 }
@@ -1149,7 +1149,7 @@ fn read_cr3_moov_exif_fields(file: &mut File, file_len: u64) -> (String, u32) {
         if file.read_exact(&mut hdr).is_err() {
             break;
         }
-        let size32 = u32::from_be_bytes([hdr[0], hdr[1], hdr[2], hdr[3]]) as u64;
+        let size32 = u64::from(u32::from_be_bytes([hdr[0], hdr[1], hdr[2], hdr[3]]));
         let box_type = [hdr[4], hdr[5], hdr[6], hdr[7]];
         let (box_size, hdr_len) = if size32 == 1 {
             if pos + 16 > file_len {
@@ -1183,7 +1183,7 @@ fn read_cr3_moov_exif_fields(file: &mut File, file_len: u64) -> (String, u32) {
                 .or_else(|| cmt1.as_ref().map(|(d, _)| d.as_str()).filter(|d| !d.is_empty()))
                 .unwrap_or("")
                 .to_string();
-            let orientation = cmt1.map(|(_, o)| o).unwrap_or(1);
+            let orientation = cmt1.map_or(1, |(_, o)| o);
             return (date, orientation);
         }
         pos += box_size;
@@ -1220,7 +1220,7 @@ pub(crate) fn read_fast_exif_fields(source: &Path) -> (String, u32) {
         if file.seek(SeekFrom::Start(0x54)).is_ok() {
             let mut buf = [0u8; 8];
             if file.read_exact(&mut buf).is_ok() {
-                let offset = u32::from_be_bytes([buf[0], buf[1], buf[2], buf[3]]) as u64;
+                let offset = u64::from(u32::from_be_bytes([buf[0], buf[1], buf[2], buf[3]]));
                 if offset > 0 && offset < file_len && file.seek(SeekFrom::Start(offset)).is_ok() {
                     let mut head = Vec::with_capacity(65_536);
                     let _ = file.take(65_536).read_to_end(&mut head);
@@ -1265,7 +1265,7 @@ fn extract_jpeg_exif_thumbnail(source: &Path, min_side: usize) -> Option<(Vec<u8
     let (e, ifd0_off) = TiffEndian::parse_header(tiff)?;
     let (entries0, ifd1_off) = tiff_slice_ifd(tiff, ifd0_off as usize, e)?;
     let mut orientation = 1u32;
-    for raw in entries0.chunks_exact(12) {
+    for raw in entries0.as_chunks::<12>().0 {
         let (tag, _, n, val) = e.entry(raw);
         if tag == 0x0112 && n == 1 && (1..=8).contains(&val) {
             orientation = val;
@@ -1277,7 +1277,7 @@ fn extract_jpeg_exif_thumbnail(source: &Path, min_side: usize) -> Option<(Vec<u8
     let (entries1, _) = tiff_slice_ifd(tiff, ifd1_off, e)?;
     let mut thumb_off = None;
     let mut thumb_len = None;
-    for raw in entries1.chunks_exact(12) {
+    for raw in entries1.as_chunks::<12>().0 {
         let (tag, _, _, val) = e.entry(raw);
         match tag {
             0x0201 => thumb_off = Some(val as usize),

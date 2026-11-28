@@ -51,14 +51,14 @@ fn list_mode_lock() -> &'static RwLock<String> {
 fn current_markers() -> Vec<String> {
     markers_lock()
         .read()
-        .unwrap_or_else(|p| p.into_inner())
+        .unwrap_or_else(std::sync::PoisonError::into_inner)
         .clone()
 }
 
 fn current_list_mode() -> String {
     list_mode_lock()
         .read()
-        .unwrap_or_else(|p| p.into_inner())
+        .unwrap_or_else(std::sync::PoisonError::into_inner)
         .clone()
 }
 
@@ -324,7 +324,7 @@ fn has_photo_marker(root: &Path, markers: &[String]) -> bool {
         if !trimmed.contains(['/', '\\']) {
             if let Ok(entries) = fs::read_dir(root) {
                 if entries
-                    .filter_map(|e| e.ok())
+                    .filter_map(std::result::Result::ok)
                     .any(|e| e.file_name().to_string_lossy().eq_ignore_ascii_case(trimmed))
                 {
                     return true;
@@ -336,7 +336,7 @@ fn has_photo_marker(root: &Path, markers: &[String]) -> bool {
 }
 
 fn format_dt_14_from_exif_or_mtime(date_taken: &str, mtime_ms: i64) -> String {
-    let digits: String = date_taken.chars().filter(|c| c.is_ascii_digit()).take(14).collect();
+    let digits: String = date_taken.chars().filter(char::is_ascii_digit).take(14).collect();
     if digits.len() >= 8 && !digits.starts_with("0000") {
         return format!("{digits:0<14}");
     }
@@ -387,7 +387,7 @@ fn enumerate_removable_volumes() -> Vec<RawRemovableVolume> {
             GetVolumeInformationW(
                 PCWSTR(wide.as_ptr()),
                 Some(&mut vol_name),
-                Some(&mut serial),
+                Some(&raw mut serial),
                 None,
                 None,
                 None,
@@ -530,7 +530,7 @@ fn disk_free_space(path: &Path) -> Result<u64, String> {
 
     let wide: Vec<u16> = OsStr::new(path).encode_wide().chain(Some(0)).collect();
     let mut free_available: u64 = 0;
-    unsafe { GetDiskFreeSpaceExW(PCWSTR(wide.as_ptr()), Some(&mut free_available), None, None) }
+    unsafe { GetDiskFreeSpaceExW(PCWSTR(wide.as_ptr()), Some(&raw mut free_available), None, None) }
         .map_err(|e| format!("Cannot read free disk space: {e}"))?;
     Ok(free_available)
 }
@@ -567,7 +567,7 @@ fn eject_removable_volume(root_path: &str) -> Result<(), String> {
     let mut chars = root_path.chars();
     let letter = chars
         .next()
-        .filter(|c| c.is_ascii_alphabetic())
+        .filter(char::is_ascii_alphabetic)
         .ok_or_else(|| "Lecteur amovible invalide".to_string())?;
     if chars.next() != Some(':') {
         return Err("Lecteur amovible invalide".to_string());
@@ -586,7 +586,7 @@ fn eject_removable_volume(root_path: &str) -> Result<(), String> {
             FILE_SHARE_READ | FILE_SHARE_WRITE,
             None,
             OPEN_EXISTING,
-            Default::default(),
+            windows::Win32::Storage::FileSystem::FILE_FLAGS_AND_ATTRIBUTES::default(),
             None,
         )
     }
@@ -595,9 +595,9 @@ fn eject_removable_volume(root_path: &str) -> Result<(), String> {
     let result = (|| -> Result<(), String> {
         let mut bytes = 0u32;
         unsafe {
-            DeviceIoControl(handle, FSCTL_LOCK_VOLUME, None, 0, None, 0, Some(&mut bytes), None)
+            DeviceIoControl(handle, FSCTL_LOCK_VOLUME, None, 0, None, 0, Some(&raw mut bytes), None)
                 .map_err(|_| "Le support est utilisé par un autre programme : fermez les fenêtres ouvertes dessus et réessayez".to_string())?;
-            DeviceIoControl(handle, FSCTL_DISMOUNT_VOLUME, None, 0, None, 0, Some(&mut bytes), None)
+            DeviceIoControl(handle, FSCTL_DISMOUNT_VOLUME, None, 0, None, 0, Some(&raw mut bytes), None)
                 .map_err(|e| format!("Démontage du volume refusé par le système : {e}"))?;
             let prevent: [u8; 1] = [0];
             let _ = DeviceIoControl(
@@ -607,10 +607,10 @@ fn eject_removable_volume(root_path: &str) -> Result<(), String> {
                 1,
                 None,
                 0,
-                Some(&mut bytes),
+                Some(&raw mut bytes),
                 None,
             );
-            DeviceIoControl(handle, IOCTL_STORAGE_EJECT_MEDIA, None, 0, None, 0, Some(&mut bytes), None)
+            DeviceIoControl(handle, IOCTL_STORAGE_EJECT_MEDIA, None, 0, None, 0, Some(&raw mut bytes), None)
                 .map_err(|e| format!("Éjection refusée par le système : {e}"))?;
         }
         Ok(())
@@ -674,7 +674,7 @@ pub(crate) fn detect_storage_kind(path: &Path) -> &'static str {
         const IOCTL_STORAGE_QUERY_PROPERTY: u32 = 0x002D1400;
 
         let mut chars = raw.chars();
-        let Some(letter) = chars.next().filter(|c| c.is_ascii_alphabetic()) else {
+        let Some(letter) = chars.next().filter(char::is_ascii_alphabetic) else {
             return "internal";
         };
         if chars.next() != Some(':') {
@@ -705,7 +705,7 @@ pub(crate) fn detect_storage_kind(path: &Path) -> &'static str {
                     FILE_SHARE_READ | FILE_SHARE_WRITE,
                     None,
                     OPEN_EXISTING,
-                    Default::default(),
+                    windows::Win32::Storage::FileSystem::FILE_FLAGS_AND_ATTRIBUTES::default(),
                     None,
                 )
             } {
@@ -720,11 +720,11 @@ pub(crate) fn detect_storage_kind(path: &Path) -> &'static str {
                     DeviceIoControl(
                         handle,
                         IOCTL_STORAGE_QUERY_PROPERTY,
-                        Some((&query as *const StoragePropertyQuery).cast()),
+                        Some((&raw const query).cast()),
                         std::mem::size_of::<StoragePropertyQuery>() as u32,
                         Some(desc.as_mut_ptr().cast()),
                         desc.len() as u32,
-                        Some(&mut returned),
+                        Some(&raw mut returned),
                         None,
                     )
                 };
@@ -797,9 +797,8 @@ fn collect_detected_media(pool: &DbPool) -> Vec<DetectedMedia> {
     let mode = current_list_mode();
     let volumes = enumerate_removable_volumes();
     let now = library_sync::now_millis();
-    let conn = match pool.get() {
-        Ok(c) => c,
-        Err(_) => return Vec::new(),
+    let Ok(conn) = pool.get() else {
+        return Vec::new();
     };
 
     let mut out = Vec::new();
@@ -874,7 +873,7 @@ fn watcher_lock() -> &'static Mutex<Option<WatcherState>> {
 }
 
 pub fn stop_device_watcher() {
-    let mut guard = watcher_lock().lock().unwrap_or_else(|p| p.into_inner());
+    let mut guard = watcher_lock().lock().unwrap_or_else(std::sync::PoisonError::into_inner);
     if let Some(mut state) = guard.take() {
         state.stop.store(true, Ordering::SeqCst);
         #[cfg(windows)]
@@ -1009,7 +1008,7 @@ fn start_device_watcher(app: tauri::AppHandle) {
             ..Default::default()
         };
         unsafe {
-            let _ = RegisterClassW(&wc);
+            let _ = RegisterClassW(&raw const wc);
         }
         // Must be a top-level (never-shown) window; HWND_MESSAGE windows do not receive WM_DEVICECHANGE broadcasts.
         let hwnd = unsafe {
@@ -1028,7 +1027,7 @@ fn start_device_watcher(app: tauri::AppHandle) {
                 None,
             )
         };
-        let hwnd_val = hwnd.as_ref().map(|h| h.0 as usize).unwrap_or(0);
+        let hwnd_val = hwnd.as_ref().map_or(0, |h| h.0 as usize);
         let _ = tx.send(hwnd_val);
         if hwnd_val == 0 {
             HANDLER.with(|cell| {
@@ -1038,9 +1037,9 @@ fn start_device_watcher(app: tauri::AppHandle) {
         }
         let mut msg = MSG::default();
         unsafe {
-            while GetMessageW(&mut msg, None, 0, 0).as_bool() {
-                let _ = TranslateMessage(&msg);
-                DispatchMessageW(&msg);
+            while GetMessageW(&raw mut msg, None, 0, 0).as_bool() {
+                let _ = TranslateMessage(&raw const msg);
+                DispatchMessageW(&raw const msg);
             }
         }
         HANDLER.with(|cell| {
@@ -1049,7 +1048,7 @@ fn start_device_watcher(app: tauri::AppHandle) {
     });
 
     let hwnd_raw = rx.recv().unwrap_or(0);
-    let mut guard = watcher_lock().lock().unwrap_or_else(|p| p.into_inner());
+    let mut guard = watcher_lock().lock().unwrap_or_else(std::sync::PoisonError::into_inner);
     *guard = Some(WatcherState {
         stop,
         hwnd_raw,
@@ -1145,12 +1144,12 @@ pub fn set_import_watcher_config(
     list_mode: String,
     retention_30d: bool,
 ) {
-    *markers_lock().write().unwrap_or_else(|p| p.into_inner()) = markers
+    *markers_lock().write().unwrap_or_else(std::sync::PoisonError::into_inner) = markers
         .into_iter()
         .map(|s| s.trim().to_string())
         .filter(|s| !s.is_empty())
         .collect();
-    *list_mode_lock().write().unwrap_or_else(|p| p.into_inner()) = if list_mode == "whitelist" {
+    *list_mode_lock().write().unwrap_or_else(std::sync::PoisonError::into_inner) = if list_mode == "whitelist" {
         "whitelist".into()
     } else {
         "blacklist".into()
@@ -1159,7 +1158,7 @@ pub fn set_import_watcher_config(
 
     let is_running = watcher_lock()
         .lock()
-        .unwrap_or_else(|p| p.into_inner())
+        .unwrap_or_else(std::sync::PoisonError::into_inner)
         .is_some();
     if enabled && !is_running {
         start_device_watcher(app);
@@ -1306,16 +1305,13 @@ pub fn identify_source(state: State<'_, AppState>, path: String) -> Result<Sourc
         let v_norm = normalize_path(&v.root_path);
         norm.eq_ignore_ascii_case(&v_norm) || is_inside_folder(&v.root_path, &path)
     });
-    let (media_id, label, ejectable) = match removable {
-        Some(vol) => (vol.media_id, vol.label, true),
-        None => {
-            let label = target
-                .file_name()
-                .map(|n| n.to_string_lossy().into_owned())
-                .filter(|s| !s.is_empty())
-                .unwrap_or_else(|| path.clone());
-            (format!("folder:{}", norm.to_lowercase()), label, false)
-        }
+    let (media_id, label, ejectable) = if let Some(vol) = removable { (vol.media_id, vol.label, true) } else {
+        let label = target
+            .file_name()
+            .map(|n| n.to_string_lossy().into_owned())
+            .filter(|s| !s.is_empty())
+            .unwrap_or_else(|| path.clone());
+        (format!("folder:{}", norm.to_lowercase()), label, false)
     };
     let pool = state.pool();
     let conn = pool.get().map_err(|e| e.to_string())?;
@@ -1401,13 +1397,13 @@ pub(crate) fn scan_source_fast_with_root(
         }
     }
 
-    let (_, last_import_at, last_imported_file_dt) = read_device_import_state(&conn, &media_id);
+    let (_, last_import_at, last_imported_file_dt) = read_device_import_state(conn, media_id);
 
     let mut folder_map: HashMap<String, ImportFolderEntry> = HashMap::new();
     let mut files = Vec::new();
     let mut total_size = 0u64;
 
-    for entry in WalkDir::new(root).into_iter().filter_map(|e| e.ok()) {
+    for entry in WalkDir::new(root).into_iter().filter_map(std::result::Result::ok) {
         if cancel.load(Ordering::Relaxed) {
             break;
         }
@@ -1453,9 +1449,7 @@ pub(crate) fn scan_source_fast_with_root(
 
         let kind = file_kind(path);
         let parent_key = path
-            .parent()
-            .map(|p| normalize_path(&p.to_string_lossy()))
-            .unwrap_or_else(|| normalize_path(root_path));
+            .parent().map_or_else(|| normalize_path(root_path), |p| normalize_path(&p.to_string_lossy()));
         if let Some(folder) = folder_map.get_mut(&parent_key) {
             match kind {
                 "raw" => folder.raw_count += 1,
@@ -1477,9 +1471,7 @@ pub(crate) fn scan_source_fast_with_root(
         // When scanning a subfolder of a removable volume, compute the file's relative path
         // from the volume root so import_history stays consistent with root-level scans.
         let history_rel = history_base
-            .and_then(|base| path.strip_prefix(base).ok())
-            .map(|r| normalize_path(&r.to_string_lossy()))
-            .unwrap_or_else(|| rel.clone());
+            .and_then(|base| path.strip_prefix(base).ok()).map_or_else(|| rel.clone(), |r| normalize_path(&r.to_string_lossy()));
 
         let (status, existing_path) = if let Some(dest) =
             memory_set.get(&(history_rel.to_lowercase(), size as i64, mtime))
@@ -1508,7 +1500,7 @@ pub(crate) fn scan_source_fast_with_root(
     }
 
     let mut folders: Vec<ImportFolderEntry> = folder_map.into_values().collect();
-    folders.sort_by(|a, b| a.relative_path.to_lowercase().cmp(&b.relative_path.to_lowercase()));
+    folders.sort_by_key(|a| a.relative_path.to_lowercase());
 
     Ok(ImportScanResult {
         folders,
@@ -1877,9 +1869,7 @@ fn check_target_path_limits(
         Some(format!("{file_name}.xmp"))
     } else if src_compat.is_file() {
         let stem = Path::new(file_name)
-            .file_stem()
-            .map(|s| s.to_string_lossy().into_owned())
-            .unwrap_or_else(|| file_name.to_string());
+            .file_stem().map_or_else(|| file_name.to_string(), |s| s.to_string_lossy().into_owned());
         Some(format!("{stem}.xmp"))
     } else {
         None
@@ -1901,10 +1891,10 @@ fn ensure_target_dir(dest_root: &Path, target_dir: &Path) -> std::io::Result<Opt
     let mut missing_top: Option<PathBuf> = None;
     let mut cur = target_dir;
     while cur != dest_root && cur.starts_with(dest_root) {
-        if !cur.exists() {
-            missing_top = Some(cur.to_path_buf());
-        } else {
+        if cur.exists() {
             break;
+        } else {
+            missing_top = Some(cur.to_path_buf());
         }
         let Some(parent) = cur.parent() else {
             break;
@@ -2179,7 +2169,7 @@ pub(crate) fn run_import_copy_with_ops(
                 break 'item;
             }
             let policy = if exact.is_file() {
-                res_choice.unwrap_or_else(|| request.collision_policy.as_str())
+                res_choice.unwrap_or(request.collision_policy.as_str())
             } else {
                 "rename"
             };
@@ -2275,9 +2265,7 @@ pub(crate) fn run_import_copy_with_ops(
 
             let dest_str = dest_path.to_string_lossy().into_owned();
             let dest_filename = dest_path
-                .file_name()
-                .map(|n| n.to_string_lossy().into_owned())
-                .unwrap_or_else(|| item.filename.clone());
+                .file_name().map_or_else(|| item.filename.clone(), |n| n.to_string_lossy().into_owned());
             let dt = format_dt_14_from_exif_or_mtime(&item.date_taken, item.mtime);
             if dt > latest_dt {
                 latest_dt = dt;
@@ -2484,7 +2472,7 @@ pub(crate) fn purge_import_history_with_conn(
     let tx = conn.unchecked_transaction().map_err(|e| e.to_string())?;
     let deleted = match (media_id, older_than_days) {
         (Some(id), Some(days)) => {
-            let cutoff = library_sync::now_millis() - (days as i64) * 86_400_000;
+            let cutoff = library_sync::now_millis() - i64::from(days) * 86_400_000;
             tx.execute(
                 "DELETE FROM import_history WHERE media_id = ?1 AND imported_at < ?2",
                 params![id, cutoff],
@@ -2495,7 +2483,7 @@ pub(crate) fn purge_import_history_with_conn(
             .execute("DELETE FROM import_history WHERE media_id = ?1", params![id])
             .map_err(|e| e.to_string())?,
         (None, Some(days)) => {
-            let cutoff = library_sync::now_millis() - (days as i64) * 86_400_000;
+            let cutoff = library_sync::now_millis() - i64::from(days) * 86_400_000;
             tx.execute("DELETE FROM import_history WHERE imported_at < ?1", params![cutoff])
                 .map_err(|e| e.to_string())?
         }
@@ -2505,17 +2493,14 @@ pub(crate) fn purge_import_history_with_conn(
     };
 
     // Recompute last_import_at and last_imported_file_dt for affected devices from remaining history.
-    let target_ids: Vec<String> = match media_id {
-        Some(id) => vec![id.to_string()],
-        None => {
-            let mut stmt = tx
-                .prepare("SELECT media_id FROM import_devices")
-                .map_err(|e| e.to_string())?;
-            let rows = stmt
-                .query_map([], |row| row.get::<_, String>(0))
-                .map_err(|e| e.to_string())?;
-            rows.collect::<Result<Vec<_>, _>>().map_err(|e| e.to_string())?
-        }
+    let target_ids: Vec<String> = if let Some(id) = media_id { vec![id.to_string()] } else {
+        let mut stmt = tx
+            .prepare("SELECT media_id FROM import_devices")
+            .map_err(|e| e.to_string())?;
+        let rows = stmt
+            .query_map([], |row| row.get::<_, String>(0))
+            .map_err(|e| e.to_string())?;
+        rows.collect::<Result<Vec<_>, _>>().map_err(|e| e.to_string())?
     };
 
     for id in target_ids {

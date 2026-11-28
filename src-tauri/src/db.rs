@@ -23,19 +23,19 @@ pub struct Photo {
     pub file_size: i64,
     pub rating: i32,
     pub color_flag: String,
-    /// Fanion « pick » : none, pending (digiKam seulement), picked ou rejected (voir exif::PICK_SOURCE_IDS).
+    /// Fanion « pick » : none, pending (digiKam seulement), picked ou rejected (voir `exif::PICK_SOURCE_IDS`).
     pub pick_flag: String,
     pub keywords: String,
-    /// Titre retenu à la lecture (voir exif::TITLE_SOURCE_IDS).
+    /// Titre retenu à la lecture (voir `exif::TITLE_SOURCE_IDS`).
     pub title: String,
-    /// Description retenue à la lecture (voir exif::DESCRIPTION_SOURCE_IDS).
+    /// Description retenue à la lecture (voir `exif::DESCRIPTION_SOURCE_IDS`).
     pub caption: String,
-    /// Coordonnées GPS retenues à la lecture (voir exif::GPS_SOURCE_IDS), en degrés décimaux ; None : photo non géolocalisée.
+    /// Coordonnées GPS retenues à la lecture (voir `exif::GPS_SOURCE_IDS`), en degrés décimaux ; None : photo non géolocalisée.
     #[serde(default)]
     pub gps_lat: Option<f64>,
     #[serde(default)]
     pub gps_lon: Option<f64>,
-    /// Flash déclenché (Some(true)), non déclenché (Some(false)) ou inconnu (None : tag absent) : voir exif::flash_fired.
+    /// Flash déclenché (Some(true)), non déclenché (Some(false)) ou inconnu (None : tag absent) : voir `exif::flash_fired`.
     #[serde(default)]
     pub flash: Option<bool>,
     // Date de modification du fichier (ms depuis 1970) lue en base : sert au tri par date de modification.
@@ -48,20 +48,20 @@ pub struct Photo {
     /// see `EFFECTIVE_MODIFIED` (SQL) and `photoModifiedTime` (main.js), which must stay the same rule.
     #[serde(default)]
     pub effective_modified: i64,
-    /// File creation date (ms since 1970, 0 = unknown): recorded when files are read (library_sync::store_dates).
+    /// File creation date (ms since 1970, 0 = unknown): recorded when files are read (`library_sync::store_dates`).
     #[serde(default)]
     pub created: i64,
     /// Resolved EXIF/XMP orientation (1..=8, 1 for HEIC whose container rotation is already applied to width/height).
     #[serde(default = "one")]
     pub orientation: u32,
-    /// Orientation the interface applies on top of the webview's when it shows the original file (see orientation::Resolved).
+    /// Orientation the interface applies on top of the webview's when it shows the original file (see `orientation::Resolved`).
     #[serde(default = "one")]
     pub view_fix: u32,
-    /// Auteur retenu à la lecture (voir exif::AUTHOR_SOURCE_IDS) ; plusieurs auteurs : « A; B ». Dans la liste des photos pour le filtre « Auteur ».
+    /// Auteur retenu à la lecture (voir `exif::AUTHOR_SOURCE_IDS`) ; plusieurs auteurs : « A; B ». Dans la liste des photos pour le filtre « Auteur ».
     #[serde(default)]
     pub author: String,
     /// Copyright, crédit, conditions d'utilisation et e-mail de l'auteur : enregistrés avec la photo mais jamais envoyés avec la liste (l'interface les
-    /// demande pour la sélection, voir rights::get_photo_rights). Vides sur une photo lue par `photo_from_row`.
+    /// demande pour la sélection, voir `rights::get_photo_rights`). Vides sur une photo lue par `photo_from_row`.
     #[serde(skip)]
     pub copyright: String,
     #[serde(skip)]
@@ -84,9 +84,7 @@ pub struct TrackedFolder {
 /// toute autre erreur arrête le démarrage avec un message clair, plutôt que de laisser des requêtes échouer plus tard.
 pub(crate) fn add_column(conn: &rusqlite::Connection, table: &str, definition: &str) {
     if let Err(error) = conn.execute(&format!("ALTER TABLE {table} ADD COLUMN {definition}"), []) {
-        if !error.to_string().contains("duplicate column name") {
-            panic!("Database migration failed ({table}: {definition}): {error}");
-        }
+        assert!(error.to_string().contains("duplicate column name"), "Database migration failed ({table}: {definition}): {error}");
     }
 }
 
@@ -651,7 +649,7 @@ pub fn get_photos_filtered(pool: &DbPool, offset: i32, limit: i32, folder_filter
                 // The page ends past the dated photos: the undated ones fill it. Offset among them = what the offset skips beyond the dated ones.
                 let skip = if photos.is_empty() && offset > 0 {
                     let dated = count_matching(&conn, &parts, DATED)?;
-                    (offset as i64 - dated).max(0) as i32
+                    (i64::from(offset) - dated).max(0) as i32
                 } else {
                     0
                 };

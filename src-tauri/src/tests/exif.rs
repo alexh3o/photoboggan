@@ -1,5 +1,5 @@
 //! Regression tests for metadata reading, normalization, priorities, and XMP helpers (exif.rs).
-//! Synthetic files in a temporary folder; ExifTool writes are tested in tests/exiftool.rs.
+//! Synthetic files in a temporary folder; `ExifTool` writes are tested in tests/exiftool.rs.
 
 use super::*;
 use crate::test_support::*;
@@ -99,7 +99,7 @@ fn microsoft_rating_percentages_map_to_stars() {
 #[test]
 fn read_order_must_list_each_source_exactly_once() {
     let ids = ["a", "b", "c"];
-    let order = |list: &[&str]| list.iter().map(|s| s.to_string()).collect::<Vec<_>>();
+    let order = |list: &[&str]| list.iter().map(std::string::ToString::to_string).collect::<Vec<_>>();
     assert_eq!(order_indices(&ids, &order(&["c", "a", "b"])).unwrap(), [2, 0, 1]);
     assert!(order_indices(&ids, &order(&["a", "a", "b"])).is_err());
     assert!(order_indices(&ids, &order(&["a", "b"])).is_err());
@@ -204,8 +204,8 @@ fn invalid_exif_gps_is_ignored() {
 
 #[test]
 fn xmp_gps_coordinate_forms() {
-    assert_eq!(parse_xmp_gps_coordinate("48,30.5N"), Some(48.508333333333333));
-    assert_eq!(parse_xmp_gps_coordinate("48,30,30S"), Some(-48.508333333333333));
+    assert_eq!(parse_xmp_gps_coordinate("48,30.5N"), Some(48.508_333_333_333_33));
+    assert_eq!(parse_xmp_gps_coordinate("48,30,30S"), Some(-48.508_333_333_333_33));
     assert_eq!(parse_xmp_gps_coordinate(" 2,15.0w "), Some(-2.25));
     assert_eq!(parse_xmp_gps_coordinate("-12.5"), Some(-12.5));
     assert_eq!(parse_xmp_gps_coordinate("48,-30N"), None);
@@ -242,7 +242,7 @@ fn gps_read_order_decides_between_exif_and_xmp() {
     let exif_segment = exif_gps_segment([(48, 1), (0, 1), (0, 1)], b'N', [(2, 1), (0, 1), (0, 1)], b'E');
     let both = with_xmp(&with_segment(&jpeg_bytes(16, 16), 0xe1, &exif_segment), &xmp_gps_packet("45,0N", "4,0E"));
     let path = write_sample(dir.path(), "a.jpg", &both);
-    let order = |ids: &[&str]| ids.iter().map(|id| id.to_string()).collect::<Vec<_>>();
+    let order = |ids: &[&str]| ids.iter().map(std::string::ToString::to_string).collect::<Vec<_>>();
 
     // Par défaut le XMP l'emporte (la position écrite par le mode Carte est relue même si l'EXIF en contient une autre).
     assert_gps(read_exif(&path).gps, (45.0, 4.0));
@@ -349,10 +349,12 @@ fn flash_is_unknown_without_exif_tag_and_falls_back_on_xmp() {
 
 #[test]
 fn marking_check_reports_each_value_the_file_does_not_show() {
-    let mut meta = ExifMetadata::default();
-    meta.rating = 4;
-    meta.color_flag = "red".into();
-    meta.pick_flag = "picked".into();
+    let meta = ExifMetadata {
+        rating: 4,
+        color_flag: "red".into(),
+        pick_flag: "picked".into(),
+        ..ExifMetadata::default()
+    };
     assert_eq!(marking_mismatch(&meta, Some(4), Some("Red"), Some("picked")), None);
     assert_eq!(marking_mismatch(&meta, None, None, None), None);
     let difference = marking_mismatch(&meta, Some(5), Some("none"), Some("rejected")).expect("differences not reported");

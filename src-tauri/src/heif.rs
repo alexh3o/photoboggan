@@ -18,10 +18,10 @@ const MAX_FILE_BYTES: u64 = 512 * 1024 * 1024;
 const XMP_TYPES: [&str; 2] = ["application/rdf+xml", "application/xmp+xml"];
 
 pub fn is_heif_path(path: &Path) -> bool {
-    path.extension().and_then(|e| e.to_str()).map(|e| EXTENSIONS.contains(&e.to_ascii_lowercase().as_str())).unwrap_or(false)
+    path.extension().and_then(|e| e.to_str()).is_some_and(|e| EXTENSIONS.contains(&e.to_ascii_lowercase().as_str()))
 }
 
-/// Fichiers jusqu'à cette taille gardés en mémoire pour la lecture suivante du même fil (voir read_all).
+/// Fichiers jusqu'à cette taille gardés en mémoire pour la lecture suivante du même fil (voir `read_all`).
 const CACHE_MAX_BYTES: u64 = 32 * 1024 * 1024;
 
 struct CachedFile { path: PathBuf, len: u64, modified: Option<SystemTime>, bytes: Arc<Vec<u8>> }
@@ -31,7 +31,7 @@ thread_local! {
     static LAST_READ: RefCell<Option<CachedFile>> = const { RefCell::new(None) };
 }
 
-/// Contenu du fichier (limité à MAX_FILE_BYTES). Le dernier fichier lu par le fil est gardé s'il fait moins de CACHE_MAX_BYTES et reste valable
+/// Contenu du fichier (limité à `MAX_FILE_BYTES`). Le dernier fichier lu par le fil est gardé s'il fait moins de `CACHE_MAX_BYTES` et reste valable
 /// tant que sa taille et sa date de modification ne changent pas : une photo n'est plus relue en entier à chaque lecture partielle.
 fn read_all(path: &Path) -> Option<Arc<Vec<u8>>> {
     let metadata = fs::metadata(path).ok()?;
@@ -74,7 +74,7 @@ pub fn decode(path: &Path) -> Result<Decoded, String> {
 fn icc_profile(bytes: &[u8]) -> Option<Vec<u8>> {
     let ctx = heic_rs::context::Context::open(bytes).ok()?;
     let props = ctx.props(ctx.meta.primary).ok()?;
-    ctx.icc(&props).map(|icc| icc.to_vec())
+    ctx.icc(&props).map(<[u8]>::to_vec)
 }
 
 /// JPEG pleine résolution (qualité 90, profil ICC conservé) pour l'affichage : le webview ne sait pas lire le HEIC.
@@ -121,7 +121,7 @@ fn be16(d: &[u8], p: usize) -> Option<u16> { Some(u16::from_be_bytes(d.get(p..p 
 fn be32(d: &[u8], p: usize) -> Option<u32> { Some(u32::from_be_bytes(d.get(p..p + 4)?.try_into().ok()?)) }
 fn be64(d: &[u8], p: usize) -> Option<u64> { Some(u64::from_be_bytes(d.get(p..p + 8)?.try_into().ok()?)) }
 fn uint(d: &[u8], p: usize, size: usize) -> Option<u64> {
-    match size { 0 => Some(0), 1 => d.get(p).map(|v| *v as u64), 2 => be16(d, p).map(u64::from), 4 => be32(d, p).map(u64::from), 8 => be64(d, p), _ => None }
+    match size { 0 => Some(0), 1 => d.get(p).map(|v| u64::from(*v)), 2 => be16(d, p).map(u64::from), 4 => be32(d, p).map(u64::from), 8 => be64(d, p), _ => None }
 }
 fn cstr(d: &[u8], p: usize, limit: usize) -> Option<(String, usize)> {
     let end = p + d.get(p..limit)?.iter().position(|b| *b == 0)?;
@@ -132,7 +132,7 @@ fn children(d: &[u8], from: usize, to: usize) -> Option<Vec<BoxRef>> {
     let mut list = Vec::new();
     let mut p = from;
     while p + 8 <= to {
-        let size = be32(d, p)? as u64;
+        let size = u64::from(be32(d, p)?);
         let kind: [u8; 4] = d.get(p + 4..p + 8)?.try_into().ok()?;
         let (header, end) = match size {
             0 => (8, to as u64),
@@ -163,7 +163,7 @@ fn parse(d: &[u8]) -> Option<Layout> {
     let find = |k: &[u8; 4]| kids.iter().find(|b| &b.kind == k).copied();
 
     let pitm = find(b"pitm")?;
-    let primary = if *d.get(pitm.payload())? == 0 { be16(d, pitm.payload() + 4)? as u32 } else { be32(d, pitm.payload() + 4)? };
+    let primary = if *d.get(pitm.payload())? == 0 { u32::from(be16(d, pitm.payload() + 4)?) } else { be32(d, pitm.payload() + 4)? };
 
     let iinf = find(b"iinf")?;
     let iinf_count_size = if *d.get(iinf.payload())? == 0 { 2 } else { 4 };
@@ -174,7 +174,7 @@ fn parse(d: &[u8]) -> Option<Layout> {
         let ver = *d.get(b.payload())?;
         let mut p = b.payload() + 4;
         if ver >= 2 {
-            let id = if ver >= 3 { let v = be32(d, p)?; p += 4; v } else { let v = be16(d, p)? as u32; p += 2; v };
+            let id = if ver >= 3 { let v = be32(d, p)?; p += 4; v } else { let v = u32::from(be16(d, p)?); p += 2; v };
             p += 2;
             let kind: [u8; 4] = d.get(p..p + 4)?.try_into().ok()?;
             p += 4;
@@ -182,7 +182,7 @@ fn parse(d: &[u8]) -> Option<Layout> {
             let content_type = if &kind == b"mime" { cstr(d, next, b.end)?.0 } else { String::new() };
             infe.push(Infe { id, kind, content_type });
         } else {
-            let id = be16(d, p)? as u32;
+            let id = u32::from(be16(d, p)?);
             p += 4;
             let (_, next) = cstr(d, p, b.end)?;
             infe.push(Infe { id, kind: *b"    ", content_type: cstr(d, next, b.end)?.0 });
@@ -204,7 +204,7 @@ fn parse(d: &[u8]) -> Option<Layout> {
     p += iloc_count_size;
     let mut locs = Vec::new();
     for _ in 0..count {
-        let id = if iloc_ver < 2 { let v = be16(d, p)? as u32; p += 2; v } else { let v = be32(d, p)?; p += 4; v };
+        let id = if iloc_ver < 2 { let v = u32::from(be16(d, p)?); p += 2; v } else { let v = be32(d, p)?; p += 4; v };
         let cm = if iloc_ver >= 1 { let v = (be16(d, p)? & 0xf) as u8; p += 2; v } else { 0 };
         p += 2;
         let base = uint(d, p, base_size)?;

@@ -82,7 +82,7 @@ fn hash_grey(grey: &[f32; SIDE * SIDE]) -> (u64, bool) {
     }
     let mut ac: Vec<f32> = coefficients[1..].to_vec();
     let mean_abs = ac.iter().map(|value| value.abs()).sum::<f32>() / ac.len() as f32;
-    ac.sort_by(|a, b| a.total_cmp(b));
+    ac.sort_by(f32::total_cmp);
     let median = ac[ac.len() / 2];
     let mut hash = 0u64;
     for (index, value) in coefficients.iter().enumerate().skip(1) {
@@ -121,8 +121,8 @@ pub fn fingerprint_rgb(rgb: &[u8], width: usize, height: usize) -> Option<Finger
     }
     let small = thumbnails::resize_area(rgb, width, height, SIDE, SIDE);
     let mut grey = [0f32; SIDE * SIDE];
-    for (target, pixel) in grey.iter_mut().zip(small.chunks_exact(3)) {
-        *target = 0.299 * pixel[0] as f32 + 0.587 * pixel[1] as f32 + 0.114 * pixel[2] as f32;
+    for (target, pixel) in grey.iter_mut().zip(small.as_chunks::<3>().0) {
+        *target = 0.299 * f32::from(pixel[0]) + 0.587 * f32::from(pixel[1]) + 0.114 * f32::from(pixel[2]);
     }
     let mut hashes = [0u64; 8];
     let mut flat = false;
@@ -148,14 +148,14 @@ fn heavy_gate() -> &'static (Mutex<usize>, Condvar) {
 
 fn with_heavy_slot<T>(work: impl FnOnce() -> T) -> T {
     let (lock, condvar) = heavy_gate();
-    let mut free = lock.lock().unwrap_or_else(|poisoned| poisoned.into_inner());
+    let mut free = lock.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
     while *free == 0 {
-        free = condvar.wait(free).unwrap_or_else(|poisoned| poisoned.into_inner());
+        free = condvar.wait(free).unwrap_or_else(std::sync::PoisonError::into_inner);
     }
     *free -= 1;
     drop(free);
     let result = work();
-    *lock.lock().unwrap_or_else(|poisoned| poisoned.into_inner()) += 1;
+    *lock.lock().unwrap_or_else(std::sync::PoisonError::into_inner) += 1;
     condvar.notify_one();
     result
 }

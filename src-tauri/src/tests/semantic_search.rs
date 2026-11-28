@@ -2,8 +2,8 @@
 //! only, no model.
 //!
 //! Parity of the text search with the reference model is `#[ignore]`: run it with
-//!   SEMANTIC_MODEL_DIR=<folder with text.onnx, tokenizer.json> cargo test semantic_search:: -- --ignored
-//! (ONNX Runtime library: ORT_DYLIB_PATH, otherwise the `models/` folder of an installed application). The speed measure on 100,000
+//!   `SEMANTIC_MODEL_DIR`=<folder with text.onnx, tokenizer.json> cargo test `semantic_search::` -- --ignored
+//! (ONNX Runtime library: `ORT_DYLIB_PATH`, otherwise the `models/` folder of an installed application). The speed measure on 100,000
 //! vectors is ignored too: `cargo test --release semantic_search::tests::speed -- --ignored --nocapture`.
 
 use std::time::{Duration, Instant};
@@ -196,7 +196,7 @@ fn result_ids(results: &SearchResults) -> Vec<i64> {
     ids(&results.results)
 }
 
-/// Text search on a scope, checking that its `pending` count is the one of get_semantic_stats (the scan's rule) for the same scope.
+/// Text search on a scope, checking that its `pending` count is the one of `get_semantic_stats` (the scan's rule) for the same scope.
 fn checked(cache: &SearchCache, conn: &Connection, scope: &SearchScope) -> SearchResults {
     let results = text(cache, conn, scope);
     let expected = stats(conn, scope.photo_ids.as_deref(), scope.folder.as_deref(), scope.recursive, scope.skip_raw).unwrap();
@@ -334,7 +334,7 @@ fn a_batch_stored_while_the_index_is_built_is_not_lost() {
                 analyse(&conn, &cache, b, 0.1);
                 index
             },
-            |index| index.len(),
+            super::Index::len,
         )
         .unwrap();
     assert_eq!(built, 1);
@@ -420,7 +420,7 @@ fn disabling_or_deleting_releases_the_memory_and_the_scan_updates_the_index() {
     };
     on_batch_stored(&model.id, &[(&target, Outcome::Embedded(model_vector(0.1)))]);
     let loads = cache.loads.load(Ordering::Relaxed);
-    assert_eq!(cache.with_index(model, || unreachable!("reloaded"), |index| index.len()).unwrap(), 2);
+    assert_eq!(cache.with_index(model, || unreachable!("reloaded"), super::Index::len).unwrap(), 2);
     assert_eq!(cache.loads.load(Ordering::Relaxed), loads);
     // Data deleted: dropped.
     invalidate();
@@ -536,8 +536,8 @@ fn floats(value: &serde_json::Value) -> Vec<f32> {
 }
 
 fn cosine(a: &[f32], b: &[f32]) -> f64 {
-    let dot: f64 = a.iter().zip(b).map(|(x, y)| *x as f64 * *y as f64).sum();
-    let norm = |v: &[f32]| v.iter().map(|x| (*x as f64).powi(2)).sum::<f64>().sqrt();
+    let dot: f64 = a.iter().zip(b).map(|(x, y)| f64::from(*x) * f64::from(*y)).sum();
+    let norm = |v: &[f32]| v.iter().map(|x| f64::from(*x).powi(2)).sum::<f64>().sqrt();
     dot / (norm(a) * norm(b))
 }
 
@@ -576,7 +576,7 @@ fn text_search_scores_match_the_reference() {
         assert_eq!(ranking.hits.len(), images.len());
         for hit in &ranking.hits {
             let reference_cos = cosine(&expected, &images[hit.photo_id as usize]);
-            assert!((hit.cos as f64 - reference_cos).abs() <= 1e-3, "{fed:?} / image {}: {} vs {reference_cos}", hit.photo_id, hit.cos);
+            assert!((f64::from(hit.cos) - reference_cos).abs() <= 1e-3, "{fed:?} / image {}: {} vs {reference_cos}", hit.photo_id, hit.cos);
         }
         println!("{fed:?}: cos with the reference {similarity:.6}, encoded in {elapsed:?}, best image {} ({:.4})", ranking.hits[0].photo_id, ranking.hits[0].cos);
     }

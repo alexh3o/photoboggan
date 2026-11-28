@@ -33,7 +33,7 @@ pub struct RenameItem {
     pub new_name: String,
 }
 
-/// Photo not renamed. `code`: invalid_name, not_found, not_tracked, duplicate, too_long, collision, exists, sidecar_exists, sidecar_taken, io, catalog.
+/// Photo not renamed. `code`: `invalid_name`, `not_found`, `not_tracked`, duplicate, `too_long`, collision, exists, `sidecar_exists`, `sidecar_taken`, io, catalog.
 #[derive(Serialize, Clone, Debug, PartialEq)]
 pub struct RenameFailure {
     pub path: String,
@@ -70,7 +70,7 @@ pub(crate) fn text_units(text: &str) -> usize {
     if cfg!(windows) { text.encode_utf16().count() } else { text.len() }
 }
 
-/// Windows: 259 characters for the whole path (MAX_PATH minus the terminator), without assuming that long paths are enabled.
+/// Windows: 259 characters for the whole path (`MAX_PATH` minus the terminator), without assuming that long paths are enabled.
 pub(crate) fn max_path_units() -> usize {
     if cfg!(windows) { 259 } else { 4095 }
 }
@@ -410,9 +410,9 @@ pub(crate) fn plan_batch(items: &[RenameItem]) -> Plan {
             for c in &active {
                 let target = target_key(c);
                 let own = cur_key(c);
-                if target_count.get(&target).copied().unwrap_or(0) > 1 {
-                    newly.push((c.index, "collision", c.new_file_name.clone()));
-                } else if target != own && keeping.contains(&target) {
+                if target_count.get(&target).copied().unwrap_or(0) > 1
+                    || (target != own && keeping.contains(&target))
+                {
                     newly.push((c.index, "collision", c.new_file_name.clone()));
                 } else if target != own && !batch_current.contains(&target) && dir_names(&mut cache, &c.parent).contains(&target.1) {
                     newly.push((c.index, "exists", c.new_file_name.clone()));
@@ -548,7 +548,7 @@ fn park(unit: &mut Unit, counter: &mut usize, conn: &rusqlite::Connection) -> Re
         let candidate = parent.join(format!(".photoboggan-rename-{}-{}{}", std::process::id(), *counter, extension));
         match crate::reserve_new_file(&candidate) {
             Ok(()) => break candidate,
-            Err(error) if is_already_exists(&error) => continue,
+            Err(error) if is_already_exists(&error) => {}
             Err(error) => return Err(error.to_string()),
         }
     };
@@ -609,7 +609,7 @@ fn restore(unit: &mut Unit, conn: &rusqlite::Connection) -> Option<String> {
                     .execute("UPDATE photos SET path = ?1, filename = ?2 WHERE path = ?3", params![current_path, new_name, unit.db_path])
                     .is_ok()
                 {
-                    unit.db_path = current_path.clone();
+                    unit.db_path.clone_from(&current_path);
                 }
             }
             left_at = Some(current_path);
@@ -647,7 +647,7 @@ pub(crate) fn execute(plan: Plan, conn: &rusqlite::Connection, thumbnails_dir: &
         .map(|planned| Unit {
             old_thumbnail: crate::thumbnail_cache_file(thumbnails_dir, &planned.path).ok(),
             old_raw_preview: crate::raw_preview_cache_file(raw_previews_dir, &planned.path).ok(),
-            size: fs::metadata(&planned.source).map(|metadata| metadata.len()).unwrap_or(0),
+            size: fs::metadata(&planned.source).map_or(0, |metadata| metadata.len()),
             img_at: planned.source.clone(),
             sidecar_at: None,
             parked: false,
@@ -696,23 +696,20 @@ pub(crate) fn execute(plan: Plan, conn: &rusqlite::Connection, thumbnails_dir: &
         }
         if progressed { continue; }
         // Nothing can move: a swap or a case-only change. One photo is parked under a temporary name, which frees its name.
-        match pending.iter().position(|unit| !unit.parked) {
-            Some(position) => {
-                if let Err(error) = park(&mut pending[position], &mut park_counter, conn) {
-                    let unit = pending.remove(position);
-                    outcome.failed.push(RenameFailure { path: unit.path.clone(), code: "io".into(), detail: error });
-                    hooks.advance(unit.size);
-                }
+        if let Some(position) = pending.iter().position(|unit| !unit.parked) {
+            if let Err(error) = park(&mut pending[position], &mut park_counter, conn) {
+                let unit = pending.remove(position);
+                outcome.failed.push(RenameFailure { path: unit.path.clone(), code: "io".into(), detail: error });
+                hooks.advance(unit.size);
             }
-            None => {
-                // Every remaining photo is parked and none can move (a name taken meanwhile): they go back to their own name.
-                for mut unit in pending.drain(..) {
-                    let left_at = restore(&mut unit, conn);
-                    outcome.failed.push(RenameFailure { path: unit.path.clone(), code: "exists".into(), detail: left_at.unwrap_or_else(|| file_name_of(&unit.target)) });
-                    hooks.advance(unit.size);
-                }
-                break;
+        } else {
+            // Every remaining photo is parked and none can move (a name taken meanwhile): they go back to their own name.
+            for mut unit in pending.drain(..) {
+                let left_at = restore(&mut unit, conn);
+                outcome.failed.push(RenameFailure { path: unit.path.clone(), code: "exists".into(), detail: left_at.unwrap_or_else(|| file_name_of(&unit.target)) });
+                hooks.advance(unit.size);
             }
+            break;
         }
     }
     outcome
@@ -779,7 +776,7 @@ pub fn rename_photos(app: tauri::AppHandle, state: State<'_, AppState>, items: V
     let unchanged = plan.unchanged.len();
     // Photos that will not be touched count as done for the progress bar.
     for path in plan.unchanged.iter().chain(plan.failed.iter().map(|failure| &failure.path)) {
-        progress.advance(fs::metadata(path).map(|metadata| metadata.len()).unwrap_or(0));
+        progress.advance(fs::metadata(path).map_or(0, |metadata| metadata.len()));
     }
     let outcome = execute(plan, &conn, &state.thumbnails_dir(), &state.raw_previews_dir(), &mut TaskHooks(&mut progress));
     Ok(RenameBatchResult {

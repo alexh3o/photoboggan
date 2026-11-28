@@ -1,13 +1,13 @@
-//! Semantic search with SigLIP 2 (spec dev_tools/Evolutions/feat semantic search SigLIP 2.md): tokenizer, image preprocessing, image and
-//! text encoders, fp16 storage of the embeddings, tables and the low-priority scan task. The searches are in semantic_search.rs (phase 3a).
+//! Semantic search with `SigLIP` 2 (spec `dev_tools/Evolutions/feat` semantic search `SigLIP` 2.md): tokenizer, image preprocessing, image and
+//! text encoders, fp16 storage of the embeddings, tables and the low-priority scan task. The searches are in `semantic_search.rs` (phase 3a).
 //!
 //! - Images (§4.1): RGB resized to `image_size × image_size` without crop nor padding, with the exact algorithm of PIL's BILINEAR resize
 //!   (triangle filter widened when downscaling, i.e. antialiased; 8-bit fixed-point passes, horizontal then vertical), as the reference
 //!   processor does; then `/255`, `(x − mean) / std`, NCHW float32. The parity is checked on the `pixel_probe` values of the fixtures.
 //! - Text (§4.2, §15.4, §15.6): lowercased, spaces collapsed, short queries wrapped in the template; Gemma tokenizer (`tokenizers` crate)
 //!   truncating to `max_text_tokens` itself, so the EOS id stays last; padded with the pad id. Same rules as `normalise_query` in
-//!   dev_tools/semantic/common.py.
-//! - Encoders: `pooler_output` of the ONNX exports, L2-normalised. Sessions are built by onnx_runtime.rs (few threads, no spinning).
+//!   `dev_tools/semantic/common.py`.
+//! - Encoders: `pooler_output` of the ONNX exports, L2-normalised. Sessions are built by `onnx_runtime.rs` (few threads, no spinning).
 //! - Storage: embeddings are kept as IEEE half floats (little-endian), converted here without any extra crate.
 //! - Scan (§6): explicit only, incremental (file size + modification date + model id), batches of 16 with one transaction each, the vision
 //!   session loaded by the first batch to infer and dropped at the end, low OS priority, and a pause while any foreground work runs
@@ -67,9 +67,9 @@ pub fn f32_to_f16(value: f32) -> u16 {
 
 /// Exact f32 value of an IEEE half float.
 pub fn f16_to_f32(half: u16) -> f32 {
-    let sign = ((half & 0x8000) as u32) << 16;
-    let exponent = ((half >> 10) & 0x1f) as u32;
-    let mantissa = (half & 0x03ff) as u32;
+    let sign = u32::from(half & 0x8000) << 16;
+    let exponent = u32::from((half >> 10) & 0x1f);
+    let mantissa = u32::from(half & 0x03ff);
     match exponent {
         0 => {
             let magnitude = mantissa as f32 * (1.0 / 16_777_216.0); // m × 2^-24, exact in f32
@@ -128,9 +128,9 @@ fn bilinear_weights(input: usize, output: usize) -> Vec<(usize, Vec<i64>)> {
             let fixed = weights
                 .iter()
                 .map(|&weight| {
-                    let weight = if total != 0.0 { weight / total } else { weight };
+                    let weight = if total == 0.0 { weight } else { weight / total };
                     let scaled = weight * (1u64 << PRECISION_BITS) as f64;
-                    (if scaled < 0.0 { scaled - 0.5 } else { scaled + 0.5 }) as i32 as i64
+                    i64::from((if scaled < 0.0 { scaled - 0.5 } else { scaled + 0.5 }) as i32)
                 })
                 .collect();
             (first as usize, fixed)
@@ -164,7 +164,7 @@ pub fn resize_bilinear(rgb: &[u8], width: usize, height: usize, out_width: usize
                 let mut sums = [half; 3];
                 for (offset, weight) in kernel.iter().enumerate() {
                     let pixel = (first + offset) * 3;
-                    for channel in 0..3 { sums[channel] += row[pixel + channel] as i64 * weight; }
+                    for channel in 0..3 { sums[channel] += i64::from(row[pixel + channel]) * weight; }
                 }
                 let target = (y * out_width + x) * 3;
                 for channel in 0..3 { out[target + channel] = clip8(sums[channel]); }
@@ -180,7 +180,7 @@ pub fn resize_bilinear(rgb: &[u8], width: usize, height: usize, out_width: usize
             let mut sums = [half; 3];
             for (offset, weight) in kernel.iter().enumerate() {
                 let pixel = ((first + offset) * out_width + x) * 3;
-                for channel in 0..3 { sums[channel] += horizontal[pixel + channel] as i64 * weight; }
+                for channel in 0..3 { sums[channel] += i64::from(horizontal[pixel + channel]) * weight; }
             }
             let target = (y * out_width + x) * 3;
             for channel in 0..3 { out[target + channel] = clip8(sums[channel]); }
@@ -198,7 +198,7 @@ pub fn image_tensor(rgb: &[u8], width: usize, height: usize, model: &ModelSpec) 
     let mut tensor = vec![0f32; 3 * plane];
     for (index, pixel) in resized.as_chunks::<3>().0.iter().enumerate() {
         for channel in 0..3 {
-            tensor[channel * plane + index] = (pixel[channel] as f32 / 255.0 - model.mean[channel]) / model.std[channel];
+            tensor[channel * plane + index] = (f32::from(pixel[channel]) / 255.0 - model.mean[channel]) / model.std[channel];
         }
     }
     tensor
@@ -209,7 +209,7 @@ pub fn image_tensor(rgb: &[u8], width: usize, height: usize, model: &ModelSpec) 
 // ---------------------------------------------------------------------------
 
 /// Text actually fed to the tokenizer: lowercased (if the model says so), spaces collapsed, wrapped in the template when it has at most
-/// `template_max_words` words (same rule as `normalise_query` in dev_tools/semantic/common.py).
+/// `template_max_words` words (same rule as `normalise_query` in `dev_tools/semantic/common.py`).
 pub fn normalise_query(text: &str, model: &ModelSpec) -> String {
     let lowered = if model.lowercase { text.to_lowercase() } else { text.to_string() };
     let words: Vec<&str> = lowered.split_whitespace().collect();
@@ -237,8 +237,8 @@ impl TextTokenizer {
     /// Token ids of an already normalised text, padded to the model length.
     pub fn ids(&self, text: &str) -> Result<Vec<i64>, String> {
         let encoding = self.tokenizer.encode(text, true).map_err(|error| format!("tokenizer : {error}"))?;
-        let mut ids: Vec<i64> = encoding.get_ids().iter().map(|&id| id as i64).collect();
-        ids.resize(self.length, self.pad_id as i64);
+        let mut ids: Vec<i64> = encoding.get_ids().iter().map(|&id| i64::from(id)).collect();
+        ids.resize(self.length, i64::from(self.pad_id));
         Ok(ids)
     }
 }
@@ -393,7 +393,7 @@ pub(crate) fn resolve_hash_threads(setting: Option<&str>, interactive: bool) -> 
         Some("2") => 2,
         Some("4") => 4,
         _ => {
-            let cores = std::thread::available_parallelism().map(|count| count.get()).unwrap_or(4);
+            let cores = std::thread::available_parallelism().map_or(4, std::num::NonZero::get);
             if interactive {
                 (cores / 2).clamp(2, 4)
             } else {
@@ -585,12 +585,9 @@ fn current_key(path: &Path, cached: Option<&crate::duplicates::DataHash>, cancel
     use crate::duplicates;
     if duplicates::is_video(path) { return None; }
     let version = duplicates::current_version(path).ok()?;
-    let (data, computed) = match cached.filter(|cached| (cached.size, cached.modified) == version) {
-        Some(cached) => (*cached, None),
-        None => {
-            let data = duplicates::image_data_hash(path, cancel).ok()?;
-            (data, Some(data))
-        }
+    let (data, computed) = if let Some(cached) = cached.filter(|cached| (cached.size, cached.modified) == version) { (*cached, None) } else {
+        let data = duplicates::image_data_hash(path, cancel).ok()?;
+        (data, Some(data))
     };
     // The orientation is read only when the hash left the metadata out (a few KB of header).
     let orientation = if data.tolerant { crate::thumbnails::read_orientation(path) } else { 1 };
@@ -751,7 +748,7 @@ pub(crate) fn store_batch_with_all_hashes(
             // Image key columns: NULL when the scan could not compute it (the row then follows the stamp rule only).
             let hash = target.key.map(|key| key.hash.to_vec());
             let hash_version = target.key.map(|_| crate::duplicates::LAYOUT_VERSION);
-            let orientation = target.key.map(|key| key.orientation as i64);
+            let orientation = target.key.map(|key| i64::from(key.orientation));
             match outcome {
                 Outcome::Embedded(vector) => {
                     insert_vector.execute(params![
@@ -795,10 +792,10 @@ pub const SCAN_RUNNING_ERROR: &str = "semantic_scan_running";
 static CURRENT_SCAN: Mutex<Option<Arc<AtomicBool>>> = Mutex::new(None);
 
 fn current_scan() -> std::sync::MutexGuard<'static, Option<Arc<AtomicBool>>> {
-    CURRENT_SCAN.lock().unwrap_or_else(|poisoned| poisoned.into_inner())
+    CURRENT_SCAN.lock().unwrap_or_else(std::sync::PoisonError::into_inner)
 }
 
-/// The single scan slot: clears CURRENT_SCAN when dropped, whatever the way the scan ends (error, panic).
+/// The single scan slot: clears `CURRENT_SCAN` when dropped, whatever the way the scan ends (error, panic).
 struct ScanSlot;
 
 impl ScanSlot {
@@ -1059,8 +1056,8 @@ fn scan_pending(
                 let batch = PreparedBatch {
                     photos,
                     decode_time: started.elapsed(),
-                    file_decodes: FILE_DECODES.with(|count| count.get()),
-                    thumbnails_written: THUMBNAILS_WRITTEN.with(|count| count.get()),
+                    file_decodes: FILE_DECODES.with(std::cell::Cell::get),
+                    thumbnails_written: THUMBNAILS_WRITTEN.with(std::cell::Cell::get),
                 };
                 if sender.send(batch).is_err() { break; }
             }
@@ -1187,7 +1184,7 @@ fn scan_pending(
 
 /// Content analysis of a selection (`photo_ids`), a folder (`folder`, subfolders if `recursive`) or the whole library (neither): computes
 /// the missing embeddings of the active model. Queue task: progress through "scan-progress" (with `done`, `total`, `remainingSeconds`,
-/// `paused`), stop through cancel_scan (photos already stored stay). `threads`: ONNX Runtime threads, 1 (default), 2 or 4.
+/// `paused`), stop through `cancel_scan` (photos already stored stay). `threads`: ONNX Runtime threads, 1 (default), 2 or 4.
 /// `write_thumbnails`: missing thumbnails are written to the cache while their photo is decoded (off by default).
 /// Errors: `semantic_disabled`, `semantic_scan_running`, `semantic_model_missing`, `semantic_unsupported_platform`, or a message.
 #[tauri::command]
@@ -1231,7 +1228,7 @@ pub async fn semantic_scan(
             .spawn(move || {
                 let _slot = slot; // released when the worker ends, after the model is dropped
                 let emit = |mut progress: ScanProgress| {
-                    progress.task_id = worker_task_id.clone();
+                    progress.task_id.clone_from(&worker_task_id);
                     let _ = app.emit("scan-progress", progress);
                 };
                 let _ = sender.send(run_scan(job, &emit));

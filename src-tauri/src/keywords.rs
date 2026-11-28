@@ -1,7 +1,7 @@
 //! Mots-clés hiérarchiques : arborescence (table `keyword_nodes`) et association photo ↔ mot-clé (table `photo_keywords`).
 //!
 //! Modèle (choisi avec l'utilisateur) :
-//! - un nœud de l'arbre = un nom sous un parent (parent_id = 0 : premier niveau) ; deux frères ne diffèrent jamais que par leur nom,
+//! - un nœud de l'arbre = un nom sous un parent (`parent_id` = 0 : premier niveau) ; deux frères ne diffèrent jamais que par leur nom,
 //!   casse ignorée ;
 //! - une photo « porte » un mot-clé quand une ligne de `photo_keywords` le désigne : seul le dernier niveau d'un chemin lu dans un fichier
 //!   est actif. Les ancêtres ne le sont que s'ils ont leur propre entrée dans le fichier ;
@@ -75,7 +75,7 @@ pub fn store_photo_keywords(conn: &Connection, items: &[(String, Vec<Vec<String>
         eprintln!("Keywords not stored (transaction not started): {error}");
         return false;
     }
-    let result = store_photo_keywords_in(conn, items).and_then(|_| conn.execute_batch("COMMIT"));
+    let result = store_photo_keywords_in(conn, items).and_then(|()| conn.execute_batch("COMMIT"));
     // After the commit, never before: a suggestion model built in between would read the old links under the new generation and stay.
     crate::semantic_keywords::on_keywords_changed();
     if let Err(error) = result {
@@ -273,7 +273,7 @@ pub struct KeywordWriteItem {
     pub usage_terms: Option<String>,
     #[serde(default)]
     pub author_email: Option<String>,
-    /// Écrire aussi les visages de la photo (zones et mots-clés des personnes, voir faces::plan_face_write). Une photo dont des visages attendent
+    /// Écrire aussi les visages de la photo (zones et mots-clés des personnes, voir `faces::plan_face_write`). Une photo dont des visages attendent
     /// d'être écrits les écrit de toute façon, puisqu'elle est réécrite.
     #[serde(default)]
     pub faces: Option<bool>,
@@ -396,14 +396,14 @@ fn push_failure(failed: &mut Vec<KeywordFailure>, photo_id: i64, path: String, e
     push_failure_with_conflict(failed, photo_id, path, error, None);
 }
 
-/// What a batch write needs from the application, given by the commands (`WriteEnv::of`) so that the write logic (run_write, run_rename,
-/// run_delete) can be tested without an AppHandle.
+/// What a batch write needs from the application, given by the commands (`WriteEnv::of`) so that the write logic (`run_write`, `run_rename`,
+/// `run_delete`) can be tested without an `AppHandle`.
 pub(crate) struct WriteEnv {
     /// Thumbnail and preview caches, renamed to follow the rewritten files.
     pub cache_dirs: crate::ImageCacheDirs,
     /// Progress of the queued task (percent); does nothing for a direct command.
     pub progress: Box<dyn Fn(u32) + Send + Sync>,
-    /// File writer: `exif::write_metadata` (ExifTool or internal, by setting); tests pass the internal writer.
+    /// File writer: `exif::write_metadata` (`ExifTool` or internal, by setting); tests pass the internal writer.
     pub write: fn(&str, &crate::exif::MetadataUpdate) -> std::io::Result<()>,
 }
 
@@ -426,7 +426,7 @@ fn run_write(
     items: Vec<KeywordWriteItem>,
     cancel: Option<Arc<AtomicBool>>,
 ) -> Result<KeywordWriteResult, String> {
-    let _write_guard = WRITE_LOCK.lock().unwrap_or_else(|poisoned| poisoned.into_inner());
+    let _write_guard = WRITE_LOCK.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
     let _priority = crate::semantic::PriorityGuard::new(); // the semantic scan waits while files are written
     let conn = pool.get().map_err(|error| error.to_string())?;
     let cache_dirs = &env.cache_dirs; // miniatures et aperçus qui suivent les fichiers réécrits
@@ -452,24 +452,21 @@ fn run_write(
             push_failure(&mut failed, item.photo_id, item.path, "Photo absente du catalogue".to_string());
             continue;
         }
-        match position.get(&item.photo_id) {
-            Some(&index) => {
-                let kept = &mut valid[index];
-                if item.keyword_ids.is_some() { kept.keyword_ids = item.keyword_ids; }
-                if item.title.is_some() { kept.title = item.title; }
-                if item.description.is_some() { kept.description = item.description; }
-                if item.author.is_some() { kept.author = item.author; }
-                if item.copyright.is_some() { kept.copyright = item.copyright; }
-                if item.credit.is_some() { kept.credit = item.credit; }
-                if item.usage_terms.is_some() { kept.usage_terms = item.usage_terms; }
-                if item.author_email.is_some() { kept.author_email = item.author_email; }
-                if item.faces == Some(true) { kept.faces = Some(true); }
-                if item.gps.is_some() { kept.gps = item.gps; }
-            }
-            None => {
-                position.insert(item.photo_id, valid.len());
-                valid.push(item);
-            }
+        if let Some(&index) = position.get(&item.photo_id) {
+            let kept = &mut valid[index];
+            if item.keyword_ids.is_some() { kept.keyword_ids = item.keyword_ids; }
+            if item.title.is_some() { kept.title = item.title; }
+            if item.description.is_some() { kept.description = item.description; }
+            if item.author.is_some() { kept.author = item.author; }
+            if item.copyright.is_some() { kept.copyright = item.copyright; }
+            if item.credit.is_some() { kept.credit = item.credit; }
+            if item.usage_terms.is_some() { kept.usage_terms = item.usage_terms; }
+            if item.author_email.is_some() { kept.author_email = item.author_email; }
+            if item.faces == Some(true) { kept.faces = Some(true); }
+            if item.gps.is_some() { kept.gps = item.gps; }
+        } else {
+            position.insert(item.photo_id, valid.len());
+            valid.push(item);
         }
     }
 
@@ -512,12 +509,9 @@ fn run_write(
                 // Un mot-clé introuvable dans l'arbre fait échouer la photo : l'ignorer le retirerait du fichier sans que la relecture le voie.
                 let mut keyword_paths: Option<Vec<Vec<String>>> = None;
                 for id in keyword_ids.unwrap_or_default() {
-                    match node_path(&nodes, *id) {
-                        Some(path) => keyword_paths.get_or_insert_with(Vec::new).push(path),
-                        None => {
-                            let message = format!("Mot-clé inconnu dans l'arbre (identifiant {id})");
-                            return (item, Some(Err(message)));
-                        }
+                    if let Some(path) = node_path(&nodes, *id) { keyword_paths.get_or_insert_with(Vec::new).push(path) } else {
+                        let message = format!("Mot-clé inconnu dans l'arbre (identifiant {id})");
+                        return (item, Some(Err(message)));
                     }
                 }
                 let update = crate::exif::MetadataUpdate {
@@ -536,7 +530,7 @@ fn run_write(
                 let result = crate::keep_cached_images(cache_dirs, &item.path, || {
                     (env.write)(&item.path, &update).map_err(|error| error.to_string())
                 })
-                .map(|_| update);
+                .map(|()| update);
                 let finished = done.fetch_add(1, Ordering::SeqCst) + 1;
                 (env.progress)((finished * 100 / total) as u32);
                 (item, Some(result))
@@ -641,8 +635,8 @@ fn run_write(
             }
         }
     }
-    let stored = store_photo_keywords_in(&tx, &keyword_batches).and_then(|_| {
-        for photo in written.iter_mut() { photo.keyword_ids = photo_keyword_ids(&tx, photo.photo_id)?; }
+    let stored = store_photo_keywords_in(&tx, &keyword_batches).and_then(|()| {
+        for photo in &mut written { photo.keyword_ids = photo_keyword_ids(&tx, photo.photo_id)?; }
         Ok(())
     });
     let stored = match stored {
@@ -673,7 +667,7 @@ fn run_write(
 }
 
 /// Écrit dans les fichiers, en une seule écriture par fichier, ce que chaque élément demande : l'ensemble final de ses mots-clés, son titre,
-/// sa description (voir exif::write_metadata), puis relit les fichiers pour mettre la base à jour. Avec `task_id`, la progression est publiée et
+/// sa description (voir `exif::write_metadata`), puis relit les fichiers pour mettre la base à jour. Avec `task_id`, la progression est publiée et
 /// l'arrêt de la tâche respecté.
 #[tauri::command]
 pub async fn apply_metadata_changes(
@@ -790,13 +784,10 @@ fn photos_carrying(conn: &Connection, ids: &[i64], dropped: &HashSet<i64>) -> Re
     let mut items: Vec<KeywordWriteItem> = Vec::new();
     let mut index_of: HashMap<i64, usize> = HashMap::new();
     for (photo_id, path, keyword_id) in collect_rows(rows)? {
-        let index = match index_of.get(&photo_id) {
-            Some(index) => *index,
-            None => {
-                items.push(KeywordWriteItem { photo_id, path, keyword_ids: Some(Vec::new()), title: None, description: None, author: None, copyright: None, credit: None, usage_terms: None, author_email: None, faces: None, gps: None });
-                index_of.insert(photo_id, items.len() - 1);
-                items.len() - 1
-            }
+        let index = if let Some(index) = index_of.get(&photo_id) { *index } else {
+            items.push(KeywordWriteItem { photo_id, path, keyword_ids: Some(Vec::new()), title: None, description: None, author: None, copyright: None, credit: None, usage_terms: None, author_email: None, faces: None, gps: None });
+            index_of.insert(photo_id, items.len() - 1);
+            items.len() - 1
         };
         if !dropped.contains(&keyword_id) { items[index].keyword_ids.get_or_insert_with(Vec::new).push(keyword_id); }
     }
@@ -972,7 +963,7 @@ pub async fn rename_keyword(
 
 /// Sets the reading priority of one metadata kind (`kind`: "keywords", "title", "description", "rating", "color", "pick", "gps", "faces",
 /// "author", "copyright", "credit", "usageTerms" or "authorEmail"):
-/// `order` lists each of its source ids once, most important first (see exif::set_read_priority). It applies to the next file reads
+/// `order` lists each of its source ids once, most important first (see `exif::set_read_priority`). It applies to the next file reads
 /// (scan, rescan, sync).
 #[tauri::command]
 pub fn set_metadata_read_order(kind: String, order: Vec<String>) -> Result<(), String> {
