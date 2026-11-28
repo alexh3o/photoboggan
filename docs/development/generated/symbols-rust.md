@@ -48,6 +48,12 @@ Functions (free and `impl` methods), structs, enums and traits of each `src-taur
 - `pub remove_photos_from_album` · L390
 - `pub replace_album_photos` · L396
 
+## app_log.rs (3)
+
+- `pub set_logs_dir` · L14 — Sets the directory where `app.log` is written (called at startup and on storage location change).
+- `pub log_error` · L19 — Logs an error to stderr (debug builds only) and appends a timestamped line to `<logs_dir>/app.log`.
+- `write_to_dir` · L28
+
 ## batch_rename.rs (48)
 
 - *struct* `pub RenameItem` · L30
@@ -886,213 +892,213 @@ Functions (free and `impl` methods), structs, enums and traits of each `src-taur
 
 ## main.rs (207)
 
-- *struct* `pub AppDataPaths` · L58
-- `pub AppDataPaths::from_base` · L67
-- `pub AppState::pool` · L76
-- `pub AppState::base_dir` · L79
-- `pub AppState::thumbnails_dir` · L82
-- `pub AppState::raw_previews_dir` · L85
-- `pub AppState::is_custom` · L88
-- `pub AppState::thumbnail_cache_size` · L91
-- *struct* `pub WindowStateConfig` · L99
-- *struct* `pub WindowTracker` · L108
-- *struct* `pub AppState` · L115
-- *struct* `AppConfig` · L123
-- `config_file_path` · L139
-- `load_config` · L147 — Config lue sur le disque. Fichier absent : config par défaut. Fichier présent mais illisible ou invalide : erreur, jamais la config par déf…
-- `load_config_at_startup` · L156 — Config au démarrage : un config.json invalide est mis de côté (`config.json.invalid-<date>`, jamais supprimé) et l'application démarre avec
-- `save_config` · L177 — Atomic write: unique temporary file flushed to disk then renamed, never a half-written config.json.
-- `check_window_visibility` · L201 — //////////////////////
-- `restore_window_state` · L245 — Restaure la géométrie de la fenêtre avec vérification de sécurité.
-- `save_current_window_state` · L303 — Sauvegarde l'état actuel de la fenêtre dans config.json.
-- `default_data_directory` · L330
-- `resolve_app_paths` · L335
-- `thumbnail_cache_file` · L360
-- `cache_files` · L381 — Tous les fichiers d'un dossier de cache (miniatures ou aperçus) : ceux des sous-dossiers de répartition, et d'éventuels fichiers à la racin…
-- `remove_empty_cache_subdirs` · L389 — Supprime les sous-dossiers de répartition devenus vides (les non vides sont conservés : `remove_dir` échoue, c'est voulu).
-- `decode_thumbnail_base64` · L396
-- `get_cached_thumbnail_paths` · L425 — Cached thumbnail lookup, batched: one IPC round trip for many thumbnails. `async` so the disk
-- *struct* `GeneratedThumbnail` · L435
-- `generate_thumbnail` · L452
-- `raw_preview_cache_file` · L471 — Les aperçus (RAW, HEIC, vidéo) ont le même nom de cache que les miniatures (chemin, taille, date du fichier), dans leur propre dossier.
-- *struct* `pub ImageCacheDirs` · L477 — Dossiers du cache d'images (miniatures, aperçus extraits des RAW / HEIC / vidéos).
-- `pub ImageCacheDirs::of` · L483
-- `pub keep_cached_images` · L491 — Écriture de métadonnées seules (note, couleur, mots-clés, titre, zones de visage…) : l'image ne change pas, mais la taille et la date du
-- `pub restamp_photo_caches` · L506 — Re-stamps up-to-date cache rows (`photo_phash`, metadata-tolerant `photo_hashes` mode 1, and `photo_embeddings`) after a metadata-only
-- `write_cache_file` · L533 — Écrit `bytes` dans le cache sous `destination` : fichier temporaire du même dossier (préfixe `prefix`) puis renommage ; le temporaire est s…
-- `get_raw_preview_path` · L553
-- `save_thumbnail_cache` · L576
-- `clear_thumbnail_cache` · L587 — Vidage miniatures
-- `purge_orphan_cache` · L607 — Supprime du cache (miniatures et aperçus RAW / vidéo) les fichiers qui ne correspondent plus à aucune photo du catalogue : photo modifiée (…
-- `purge_orphan_thumbnails` · L645 — Bouton « Supprimer les miniatures orphelines » (Paramètres > Stockage) ; la même purge termine le rescan complet (voir rescan_all_folders).
-- `default_thumbnail_cache_size` · L660 — Cache size of a new installation: `thumbnailCacheSize` of src/defaults.jsonc, the file that also feeds the frontend. Both sides must
-- `startup_thumbnail_cache_size` · L672 — Cache size used at startup: the one saved in config.json when it is valid, otherwise the shared default.
-- `set_thumbnail_cache_size` · L677
-- `set_thumbnail_quality` · L694 — Thumbnail quality chosen in Settings > Storage: "normal" or "high". Applies to thumbnails written from now on,
-- `get_folders` · L709
-- `add_folder` · L717 — Ajoute le dossier à la liste des dossiers suivis, sans le scanner : l'interface met le scan en file d'attente (commande `scan_folder`),
-- `remove_folder` · L725
-- *enum* `ScanMode` · L732
-- *struct* `pub ScanProgress` · L741 — Progression d'une tâche de scan, publiée dans l'événement « scan-progress » : l'interface retrouve sa tâche grâce à `taskId`
-- *struct* `CancelEntry` · L748 — Drapeaux d'annulation des scans, par identifiant de tâche. Le drapeau est créé par le premier qui le demande (le scan ou la demande d'arrêt…
-- `scan_cancel_flags` · L753
-- `pub scan_cancel_flag` · L758
-- `running_tasks` · L767 — Nombre de tâches de la file en cours (scan, rescan, intégrité, copie, déplacement, écriture de mots-clés, détection de visages, téléchargem…
-- `pub release_scan_cancel_flag` · L771
-- `cancel_scan` · L778 — Arrête un scan ou une relecture en cours : le parcours cesse et les photos déjà lues restent dans le catalogue.
-- `run_scan` · L787 — `scan_mode` : mode de calcul de l'avancement (relecture, éventuellement d'une partie des dossiers suivis, ou découverte d'un dossier)
-- `scan_folder` · L900 — `resume_since` (ms): resumes a paused scan first started at that time (see run_scan); absent for a new scan.
-- `rescan_all_folders` · L909
-- `path_segments` · L935
-- `pub resolve_tracked_folder` · L942 — Chemin réel d'un dossier de l'arborescence : le dossier suivi qui le contient, tel qu'il est enregistré, suivi des segments relatifs.
-- `rescan_folder` · L962 — Rescan d'un seul dossier suivi ou d'un de ses sous-dossiers (sous-dossiers compris), comme le rescan complet : les métadonnées de chaque
-- *struct* `ScanDetail` · L975 — Dossier en cours d'analyse par une tâche (vérification d'intégrité), publié dans l'événement « scan-detail » à chaque changement de dossier.
-- `integrity_scan` · L984 — Vérification d'intégrité d'un dossier de l'arborescence (voir integrity.rs) : chaque fichier est décodé (RAW : vignette JPEG intégrée) et l…
-- *struct* `RichScanProgress` · L1044
-- `find_duplicates` · L1057 — Duplicate search, identical images (see duplicates.rs): pauses any background precomputation, runs at low OS priority,
-- `list_duplicate_candidates` · L1084 — Duplicate search by file name: the interface applies the name pattern (a JavaScript regular expression), so the backend only lists the phot…
-- `find_similar_images` · L1091 — Duplicate search, similar images (see similar.rs): pauses any background precomputation, runs at low OS priority,
-- `export_integrity_report` · L1120 — Exporte le rapport d'intégrité en .txt dans le dossier choisi par l'utilisateur : texte d'en-tête fourni par l'interface, puis fichiers sus…
-- `open_folder_in_file_manager` · L1127 — Ouvre un dossier de l'arborescence dans le gestionnaire de fichiers par défaut de l'OS (Explorateur Windows, Finder, gestionnaire Linux).
-- `create_subfolder` · L1139 — Crée un sous-dossier dans un dossier de l'arborescence (suivi ou sous-dossier d'un dossier suivi). Le nom est vérifié ici : un seul niveau,
-- `list_disk_folders` · L1153 — Liste tous les sous-dossiers présents sur le disque sous les dossiers suivis. L'arborescence de l'interface est déduite des photos : cette …
-- `insert_batch` · L1168 — Insère (ou met à jour) un lot de photos en une seule transaction : tout ou rien, l'erreur est renvoyée à l'appelant.
-- `get_photos_by_paths` · L1201 — Catalog records of a list of paths (results of the duplicate search); unknown paths are left out.
-- `get_photos_by_ids` · L1210 — Catalog records of a list of photo ids (results of the content search); unknown ids are left out.
-- `get_photos_paginated` · L1222 — `sort_key` / `sort_order` (optional, default newest first): the interface sort, so that a capped list holds the right photos.
-- `count_photos` · L1236 — Number of photos of a folder (or of the whole catalogue), optionally prefiltered: it decides whether the backend prefilters, and
-- `get_folder_counts` · L1242 — Photos et vidéos de chaque dossier du catalogue (niveau direct), pour l'option « Montrer le nombre de photos des dossiers ».
-- *struct* `MarkingTarget` · L1253 — Photo visée par une écriture de marquage (identifiant et chemin du catalogue).
-- *struct* `MarkingFailure` · L1265
-- *struct* `MarkingError` · L1274
-- `MarkingError::from` · L1280
-- *struct* `MarkingResult` · L1286
-- *struct* `WrittenDate` · L1298 — Effective modification date (ms, see `library_sync::effective_modified_millis`) of a photo a write has just changed.
-- `update_photos_marking` · L1307 — Note, couleur et/ou fanion pick d'un lot de photos, en une commande (directe, ou tâche de la file avec `task_id` : progression et arrêt).
-- `mark_photo_for_resync` · L1382 — Marks `id` in the catalog (`file_size = -1`) so the next incremental sync re-reads the photo and its sidecar.
-- `write_photo_marking_with` · L1392 — Marquage d'une photo : fichier (ou sidecar), puis base. `label` et `pick` déjà vérifiés ; `color_flag` : valeur enregistrée en base.
-- `write_photo_marking` · L1451
-- *struct* `RotatedPhoto` · L1466 — Photo turned by `rotate_photos`: its new `view_fix` (see `orientation::Resolved`), which the interface applies to the original it shows.
-- *struct* `RotationResult` · L1475
-- `rotate_photos` · L1486 — Lossless rotation of a batch of photos by `quarter_turns` (1: clockwise, -1: counterclockwise, 2: 180°): only the orientation tag changes
-- `rotate_photo_with` · L1538 — Rotation of one photo: tag written, read back, cached images dropped (they are oriented), then catalog. Returns the new `orientation`, `vie…
-- `rotate_photo` · L1582
-- *struct* `pub FileFailure` · L1587
-- *struct* `DeleteResult` · L1593
-- *struct* `CopyResult` · L1599
-- *struct* `pub CopyConflict` · L1611 — Fichier à copier dont le nom existe déjà dans le dossier de destination : de quoi poser la question à l'utilisateur (tailles, dates en mill…
-- *struct* `pub MovedFile` · L1621
-- *struct* `MoveResult` · L1627
-- `get_photo_details` · L1639 — Contenu de la fenêtre « Infos » du menu contextuel : fichier, EXIF, XMP et IPTC.
-- *struct* `PhotoSidecar` · L1644
-- `get_photo_sidecar` · L1651 — Active `.xmp` sidecar of `path`, if one exists on disk (used by the Info tab).
-- *struct* `FileDates` · L1660 — File dates read from the disk (milliseconds since 1970). `None` when the system does not provide them (creation date on some Linux file sys…
-- `get_file_dates` · L1666
-- `sidecar_to_trash` · L1680 — Sidecar XMP à supprimer avec une photo. « photo.jpg.xmp » (extension complète + .xmp) appartient à ce seul fichier. « photo.xmp » (nom comp…
-- `pub validate_new_name` · L1692 — Nom de fichier ou de dossier saisi par l'utilisateur : un seul niveau, sans caractère interdit par Windows (le même nom reste valide sous L…
-- `pub same_existing_file` · L1707 — True if both paths exist and are the very same file or folder: a case-only rename on Windows or macOS (`img.jpg` -> `IMG.jpg`), which is
-- `reserve_new_file` · L1713 — Creates `path` empty, only if nothing is there (atomic): the name is ours until a rename or copy replaces this placeholder. A file that
-- `rename_photo` · L1721 — Renomme une photo dans son dossier (l'extension est conservée : « IMG.2024.cr2 » + « vacances » -> « vacances.cr2 »). Son sidecar suit : « …
-- `rename_folder` · L1823 — Renomme un dossier de l'arborescence (sous-dossier d'un dossier suivi) sur place. Les photos qu'il contient (sous-dossiers compris) gardent…
-- `delete_photos_with` · L1893 — Suppression vers la corbeille de l'OS (crate `trash`) : le fichier est restaurable depuis la corbeille. Seules les photos du catalogue
-- `delete_photos` · L1956
-- *enum* `WindowsRoot` · L1972 — Windows : la corbeille n'existe que sur les disques fixes (HDD et SSD, y compris les disques externes que Windows voit comme fixes). Une cl…
-- `windows_root` · L1980 — Lecteur (« D:\ ») ou partage UNC d'un chemin, avec « / » ou « \ » et préfixes « \\?\ » acceptés.
-- `will_recycle_from_pre_delete_flags` · L2000 — Returns true when Windows Shell `PreDeleteItem` flags confirm the item will go to the Recycle Bin.
-- `windows_shell_path` · L2006
-- `has_trash_for_root` · L2030
-- `pub has_trash` · L2052
-- `pub has_trash` · L2063
-- `trash_strict_on_sta` · L2068
-- `trash_strict` · L2152 — Moves `path` to the Windows Recycle Bin and aborts before deletion if Windows would permanently delete it.
-- `trash_strict` · L2186
-- `trash_or_delete_if_confirmed` · L2191 — Uses strict verified recycle when `has_trash` promised a Recycle Bin; falls back to `trash::delete` only when the UI already warned of perm…
-- `count_permanent_deletions` · L2202 — Nombre de ces chemins (fichiers ou dossiers) que la suppression n'enverra PAS à la corbeille mais effacera définitivement, d'après leur sup…
-- `is_folder_empty` · L2238 — Vrai si le dossier ne contient aucun fichier (sous-dossiers vides acceptés). Fichiers cachés compris, sauf les fichiers que l'OS recrée seul
-- `get_folder_unrecognized_files` · L2253 — Recense les fichiers présents dans le dossier qui ne sont ni des photos/vidéos gérées par l'application,
-- `delete_folder` · L2292 — Supprime un dossier de l'arborescence (sous-dossier d'un dossier suivi) vers la corbeille de l'OS, avec tout son contenu : sous-dossiers et
-- `tracked_root_is_reachable` · L2343 — Un dossier suivi est « joignable » s'il existe, ou si son dossier parent existe (dossier supprimé ou renommé hors de l'application).
-- `pub is_inside_folder` · L2348
-- `remove_missing_photos` · L2359 — Synchronisation « paresseuse » avec le disque : l'interface signale les photos qu'elle n'arrive pas à afficher
-- `log_temp_leftovers` · L2378 — Logs crash-leftover temporary items found during sync to `<storage>/logs`, once per distinct set in a session.
-- `check_external_modifications` · L2409 — Checks whether any undo target file or its active sidecar was modified externally since the original action.
-- `sync_library` · L2419 — `excluded`: folders of paused scans, left for the scan to read when it is resumed.
-- `sidecar_already_taken` · L2441 — Réserve dans le dossier de destination le premier nom libre (« photo.jpg », puis « photo (1).jpg », « photo (2).jpg »…) en y créant un fich…
-- *struct* `pub Reserved` · L2448 — Name reserved by `reserve_destination`, and the sidecar that made the first choices unusable (to report: the photo gets another name).
-- `pub Reserved::sidecar_rename` · L2454
-- `pub reserve_destination` · L2463
-- `pub copy_sidecar_with` · L2501 — Copie aussi le sidecar XMP (`photo.jpg.xmp` ou `photo.xmp`) : note, couleur et mots-clés des formats autres que JPEG y sont stockés.
-- `pub copy_sidecar` · L2538
-- `pub lowercase_segments` · L2542
-- `set_verify_cross_drive_moves` · L2550
-- `pub flush_to_disk` · L2555 — Asks the system to write `path` physically to its disk (data and size), not just to its write cache.
-- `pub sync_parent_dir` · L2586 — Linux / macOS: a new or renamed file is durable only once its directory entry is, so the folder is flushed too (best effort: some file
-- `source_snapshot` · L2595
-- `copy_durably_with` · L2602 — Copies `source` to `target` (which must be a disposable temporary path), verifies that `source` kept the same
-- `copy_durably` · L2637 — `fs::copy`, then verifies source stability and flushes the copy to disk: once this returns, the copy is coherent and survives a power cut.
-- `file_sha256` · L2642 — Somme SHA-256 d'un fichier, lue par blocs (jamais le fichier entier en mémoire).
-- `pub files_have_same_hash` · L2656
-- `pub remove_copied_target` · L2667 — Déplace un fichier : renommage, ou copie puis suppression de l'original quand le renommage est impossible (autre disque, par exemple).
-- `temp_sibling_path` · L2680
-- `pub copy_atomically_to_reserved_verified` · L2692 — Copies `source` to a unique temporary file in `reserved_target`'s folder, flushes it to disk,
-- `pub copy_atomically_to_reserved` · L2713 — Copies `source` to a unique temporary file in `reserved_target`'s folder, flushes it to disk,
-- `rename_with_retry` · L2718 — Retries a rollback rename briefly in case an antivirus or indexer transiently holds a handle.
-- `pub replace_file_via_backup_with_rename` · L2734
-- `pub replace_file_via_backup` · L2811 — Replaces an existing `target` with `temp` in three reversible steps so the original is never lost on failure
-- `pub replace_file_via_trash_with` · L2819
-- `pub replace_file_via_trash` · L2834 — Replaces an existing `target` with `temp` by sending the previous file to the OS trash.
-- `move_file_via_copy` · L2838
-- `move_file` · L2876
-- `move_sidecar` · L2889 — XMP sidecar of a moved photo: `photo.jpg.xmp` is always moved with it. A compatible `photo.xmp` is moved when no sibling
-- *struct* `StagedSidecar` · L2910
-- `stage_sidecar_for_move` · L2917 — Phase 1 of a photo move: copies the source sidecar atomically to its reserved destination
-- `move_photo_with_sidecar_using` · L2947 — Moves a photo together with its sidecar in two phases: stage sidecar -> move photo -> remove source sidecar (if unshared).
-- *struct* `FileTaskProgress` · L2981 — Suivi d'une tâche de fichiers (déplacement, copie) lancée depuis la file de l'interface : publie l'avancement dans « scan-progress » (pondé…
-- `FileTaskProgress::new` · L2990
-- `FileTaskProgress::cancelled` · L2997
-- `FileTaskProgress::advance` · L3002 — À appeler après chaque fichier traité (réussi ou non) avec sa taille.
-- `FileTaskProgress::drop` · L3012
-- `carry_cache_file` · L3019 — Reporte un fichier du cache (miniature, aperçu RAW) sous son nouveau nom après un déplacement de la photo. Sans nouveau nom, ou si le renom…
-- `move_photos` · L3034 — Déplace des photos du catalogue vers un dossier de l'arborescence (suivi ou sous-dossier d'un dossier suivi), par glisser-déposer.
-- `pub find_copy_conflicts` · L3131 — Fichiers à copier dont le nom existe déjà dans `destination` (le fichier de la destination et celui à copier sont décrits pour la question …
-- `pub copy_replacing_verified_with` · L3158 — Copy that replaces an existing file: written under a temporary name in the destination folder, flushed to the disk,
-- `pub copy_replacing_verified` · L3190
-- `copy_replacing_with` · L3205
-- `pub copy_replacing` · L3213
-- `copy_photos_with_progress` · L3221 — Copie des fichiers originaux (pas des miniatures) dans un dossier. Un fichier déjà présent n'est écrasé que si l'utilisateur l'a demandé :
-- `copy_conflicts` · L3283 — Question « le fichier existe déjà » avant une copie vers un dossier choisi dans la boîte de dialogue de l'OS : liste des fichiers en confli…
-- `copy_photos` · L3288
-- `tracked_copy_conflicts` · L3297 — Même question pour une copie par glisser-déposer (dossier suivi ou sous-dossier).
-- `copy_photos_to_tracked_folder` · L3307 — Copie par glisser-déposer (Ctrl) vers un dossier de l'arborescence : même copie que « Copier vers… » (écrasement seulement sur choix de l'u…
-- `resize_photo` · L3320 — Redimensionne une photo selon les options de la fenêtre « Redimensionner… » (voir resize.rs) : un appel par photo, l'interface pilote le lot
-- `same_program` · L3339
-- `is_allowed_program` · L3343
-- `allow_programs` · L3347
-- `pick_program` · L3360 — OS dialog to choose a program, opened by the backend: the chosen program is allowed for `open_with`. None if the user cancels.
-- `register_existing_programs` · L3374 — Programs already in the Settings before this check existed: allowed once, at the first start that has no list yet; ignored afterwards.
-- `open_with` · L3380 — Ouvre les fichiers avec un programme externe (liste des Paramètres ou programme choisi dans la boîte de dialogue de l'OS).
-- `reveal_in_file_manager` · L3394 — Affiche le fichier dans le gestionnaire de fichiers par défaut de l'OS : dossier ouvert avec le fichier sélectionné
-- `pub write_timestamped_log` · L3401 — Writes `text` to a new file of `logs_dir` (created if needed) named `<prefix>_<date>_<time>.log` after `now`; `-2`, `-3`... are added if the
-- *struct* `pub SidecarRename` · L3423 — Photo moved or copied under another name because a sidecar not its own was already at the destination (see `reserve_destination`).
-- `pub log_sidecar_renames` · L3430 — Log of the renames of one move or copy, in `<storage>/logs`. Returns its path (None if nothing to log, or with the error traced).
-- *struct* `WriteRecoveryReport` · L3451 — Recoveries after failed `ExifTool` writes (see `exiftool::recover_after_failure`), reported once a write operation is over.
-- `log_write_recoveries` · L3458 — Writes every recovery not yet reported to one timestamped file of `<storage folder>/logs`. None when there was nothing to report.
-- `take_write_recoveries` · L3473 — Called by the interface after each metadata write operation: all recoveries since the last call, in a single log file and a single dialog.
-- `open_video_externally` · L3480 — Ouvre une vidéo du catalogue dans le lecteur multimédia par défaut de l'OS (plugin opener déjà intégré) : l'application n'embarque aucun le…
-- `copy_files_to_clipboard` · L3501
-- `read_clipboard_text` · L3526 — Texte du presse-papiers, pour « Coller » dans le menu des champs de saisie (le navigateur intégré demanderait une autorisation pour le lire…
-- `write_clipboard_text` · L3537 — Copie un texte dans le presse-papiers (coordonnées du groupe Lieu) : l'écriture par le navigateur intégré peut être refusée.
-- `clipboard_entry` · L3549 — Format attendu par clipboard-rs pour set_files : sous Windows, les chemins tels quels (la crate construit elle-même la liste CF_HDROP ;
-- `clipboard_entry` · L3554
-- `file_uri` · L3560 — URI « file:/// » avec caractères spéciaux encodés en %XX (ex. /home/x/a b.jpg -> file:///home/x/a%20b.jpg).
-- `main` · L3574
-- `move_file_or_copy` · L3933 — Fonctions de déplacmeents des fichiers de base
-- `copy_dir_recursive` · L3954 — `durable`: each copy is flushed to the disk (see `copy_durably`), for data that cannot be rebuilt once the old location is removed.
-- `remove_storage` · L3972 — Supprime les fichiers et dossiers de données d'un dossier de stockage (au mieux : un échec est tracé, rien n'est jamais bloquant).
-- `copy_storage` · L3989 — Copie (sans rien supprimer à la source) la base et les dossiers de données vers `to`. La base est copiée pendant qu'une transaction d'écrit…
-- *struct* `StorageLocationInfo` · L4017
-- `get_storage_location` · L4024
-- `change_storage_location` · L4034
+- *struct* `pub AppDataPaths` · L59
+- `pub AppDataPaths::from_base` · L68
+- `pub AppState::pool` · L77
+- `pub AppState::base_dir` · L80
+- `pub AppState::thumbnails_dir` · L83
+- `pub AppState::raw_previews_dir` · L86
+- `pub AppState::is_custom` · L89
+- `pub AppState::thumbnail_cache_size` · L92
+- *struct* `pub WindowStateConfig` · L100
+- *struct* `pub WindowTracker` · L109
+- *struct* `pub AppState` · L116
+- *struct* `AppConfig` · L124
+- `config_file_path` · L140
+- `load_config` · L148 — Config lue sur le disque. Fichier absent : config par défaut. Fichier présent mais illisible ou invalide : erreur, jamais la config par déf…
+- `load_config_at_startup` · L157 — Config au démarrage : un config.json invalide est mis de côté (`config.json.invalid-<date>`, jamais supprimé) et l'application démarre avec
+- `save_config` · L178 — Atomic write: unique temporary file flushed to disk then renamed, never a half-written config.json.
+- `check_window_visibility` · L202 — //////////////////////
+- `restore_window_state` · L246 — Restaure la géométrie de la fenêtre avec vérification de sécurité.
+- `save_current_window_state` · L304 — Sauvegarde l'état actuel de la fenêtre dans config.json.
+- `default_data_directory` · L331
+- `resolve_app_paths` · L336
+- `thumbnail_cache_file` · L361
+- `cache_files` · L382 — Tous les fichiers d'un dossier de cache (miniatures ou aperçus) : ceux des sous-dossiers de répartition, et d'éventuels fichiers à la racin…
+- `remove_empty_cache_subdirs` · L390 — Supprime les sous-dossiers de répartition devenus vides (les non vides sont conservés : `remove_dir` échoue, c'est voulu).
+- `decode_thumbnail_base64` · L397
+- `get_cached_thumbnail_paths` · L426 — Cached thumbnail lookup, batched: one IPC round trip for many thumbnails. `async` so the disk
+- *struct* `GeneratedThumbnail` · L436
+- `generate_thumbnail` · L453
+- `raw_preview_cache_file` · L472 — Les aperçus (RAW, HEIC, vidéo) ont le même nom de cache que les miniatures (chemin, taille, date du fichier), dans leur propre dossier.
+- *struct* `pub ImageCacheDirs` · L478 — Dossiers du cache d'images (miniatures, aperçus extraits des RAW / HEIC / vidéos).
+- `pub ImageCacheDirs::of` · L484
+- `pub keep_cached_images` · L492 — Écriture de métadonnées seules (note, couleur, mots-clés, titre, zones de visage…) : l'image ne change pas, mais la taille et la date du
+- `pub restamp_photo_caches` · L507 — Re-stamps up-to-date cache rows (`photo_phash`, metadata-tolerant `photo_hashes` mode 1, and `photo_embeddings`) after a metadata-only
+- `write_cache_file` · L534 — Écrit `bytes` dans le cache sous `destination` : fichier temporaire du même dossier (préfixe `prefix`) puis renommage ; le temporaire est s…
+- `get_raw_preview_path` · L554
+- `save_thumbnail_cache` · L577
+- `clear_thumbnail_cache` · L588 — Vidage miniatures
+- `purge_orphan_cache` · L608 — Supprime du cache (miniatures et aperçus RAW / vidéo) les fichiers qui ne correspondent plus à aucune photo du catalogue : photo modifiée (…
+- `purge_orphan_thumbnails` · L646 — Bouton « Supprimer les miniatures orphelines » (Paramètres > Stockage) ; la même purge termine le rescan complet (voir rescan_all_folders).
+- `default_thumbnail_cache_size` · L661 — Cache size of a new installation: `thumbnailCacheSize` of src/defaults.jsonc, the file that also feeds the frontend. Both sides must
+- `startup_thumbnail_cache_size` · L673 — Cache size used at startup: the one saved in config.json when it is valid, otherwise the shared default.
+- `set_thumbnail_cache_size` · L678
+- `set_thumbnail_quality` · L695 — Thumbnail quality chosen in Settings > Storage: "normal" or "high". Applies to thumbnails written from now on,
+- `get_folders` · L710
+- `add_folder` · L718 — Ajoute le dossier à la liste des dossiers suivis, sans le scanner : l'interface met le scan en file d'attente (commande `scan_folder`),
+- `remove_folder` · L726
+- *enum* `ScanMode` · L733
+- *struct* `pub ScanProgress` · L742 — Progression d'une tâche de scan, publiée dans l'événement « scan-progress » : l'interface retrouve sa tâche grâce à `taskId`
+- *struct* `CancelEntry` · L749 — Drapeaux d'annulation des scans, par identifiant de tâche. Le drapeau est créé par le premier qui le demande (le scan ou la demande d'arrêt…
+- `scan_cancel_flags` · L754
+- `pub scan_cancel_flag` · L759
+- `running_tasks` · L768 — Nombre de tâches de la file en cours (scan, rescan, intégrité, copie, déplacement, écriture de mots-clés, détection de visages, téléchargem…
+- `pub release_scan_cancel_flag` · L772
+- `cancel_scan` · L779 — Arrête un scan ou une relecture en cours : le parcours cesse et les photos déjà lues restent dans le catalogue.
+- `run_scan` · L788 — `scan_mode` : mode de calcul de l'avancement (relecture, éventuellement d'une partie des dossiers suivis, ou découverte d'un dossier)
+- `scan_folder` · L901 — `resume_since` (ms): resumes a paused scan first started at that time (see run_scan); absent for a new scan.
+- `rescan_all_folders` · L910
+- `path_segments` · L936
+- `pub resolve_tracked_folder` · L943 — Chemin réel d'un dossier de l'arborescence : le dossier suivi qui le contient, tel qu'il est enregistré, suivi des segments relatifs.
+- `rescan_folder` · L963 — Rescan d'un seul dossier suivi ou d'un de ses sous-dossiers (sous-dossiers compris), comme le rescan complet : les métadonnées de chaque
+- *struct* `ScanDetail` · L976 — Dossier en cours d'analyse par une tâche (vérification d'intégrité), publié dans l'événement « scan-detail » à chaque changement de dossier.
+- `integrity_scan` · L985 — Vérification d'intégrité d'un dossier de l'arborescence (voir integrity.rs) : chaque fichier est décodé (RAW : vignette JPEG intégrée) et l…
+- *struct* `RichScanProgress` · L1045
+- `find_duplicates` · L1058 — Duplicate search, identical images (see duplicates.rs): pauses any background precomputation, runs at low OS priority,
+- `list_duplicate_candidates` · L1085 — Duplicate search by file name: the interface applies the name pattern (a JavaScript regular expression), so the backend only lists the phot…
+- `find_similar_images` · L1092 — Duplicate search, similar images (see similar.rs): pauses any background precomputation, runs at low OS priority,
+- `export_integrity_report` · L1121 — Exporte le rapport d'intégrité en .txt dans le dossier choisi par l'utilisateur : texte d'en-tête fourni par l'interface, puis fichiers sus…
+- `open_folder_in_file_manager` · L1128 — Ouvre un dossier de l'arborescence dans le gestionnaire de fichiers par défaut de l'OS (Explorateur Windows, Finder, gestionnaire Linux).
+- `create_subfolder` · L1140 — Crée un sous-dossier dans un dossier de l'arborescence (suivi ou sous-dossier d'un dossier suivi). Le nom est vérifié ici : un seul niveau,
+- `list_disk_folders` · L1154 — Liste tous les sous-dossiers présents sur le disque sous les dossiers suivis. L'arborescence de l'interface est déduite des photos : cette …
+- `insert_batch` · L1169 — Insère (ou met à jour) un lot de photos en une seule transaction : tout ou rien, l'erreur est renvoyée à l'appelant.
+- `get_photos_by_paths` · L1202 — Catalog records of a list of paths (results of the duplicate search); unknown paths are left out.
+- `get_photos_by_ids` · L1211 — Catalog records of a list of photo ids (results of the content search); unknown ids are left out.
+- `get_photos_paginated` · L1223 — `sort_key` / `sort_order` (optional, default newest first): the interface sort, so that a capped list holds the right photos.
+- `count_photos` · L1237 — Number of photos of a folder (or of the whole catalogue), optionally prefiltered: it decides whether the backend prefilters, and
+- `get_folder_counts` · L1243 — Photos et vidéos de chaque dossier du catalogue (niveau direct), pour l'option « Montrer le nombre de photos des dossiers ».
+- *struct* `MarkingTarget` · L1254 — Photo visée par une écriture de marquage (identifiant et chemin du catalogue).
+- *struct* `MarkingFailure` · L1266
+- *struct* `MarkingError` · L1275
+- `MarkingError::from` · L1281
+- *struct* `MarkingResult` · L1287
+- *struct* `WrittenDate` · L1299 — Effective modification date (ms, see `library_sync::effective_modified_millis`) of a photo a write has just changed.
+- `update_photos_marking` · L1308 — Note, couleur et/ou fanion pick d'un lot de photos, en une commande (directe, ou tâche de la file avec `task_id` : progression et arrêt).
+- `mark_photo_for_resync` · L1383 — Marks `id` in the catalog (`file_size = -1`) so the next incremental sync re-reads the photo and its sidecar.
+- `write_photo_marking_with` · L1393 — Marquage d'une photo : fichier (ou sidecar), puis base. `label` et `pick` déjà vérifiés ; `color_flag` : valeur enregistrée en base.
+- `write_photo_marking` · L1452
+- *struct* `RotatedPhoto` · L1467 — Photo turned by `rotate_photos`: its new `view_fix` (see `orientation::Resolved`), which the interface applies to the original it shows.
+- *struct* `RotationResult` · L1476
+- `rotate_photos` · L1487 — Lossless rotation of a batch of photos by `quarter_turns` (1: clockwise, -1: counterclockwise, 2: 180°): only the orientation tag changes
+- `rotate_photo_with` · L1539 — Rotation of one photo: tag written, read back, cached images dropped (they are oriented), then catalog. Returns the new `orientation`, `vie…
+- `rotate_photo` · L1583
+- *struct* `pub FileFailure` · L1588
+- *struct* `DeleteResult` · L1594
+- *struct* `CopyResult` · L1600
+- *struct* `pub CopyConflict` · L1612 — Fichier à copier dont le nom existe déjà dans le dossier de destination : de quoi poser la question à l'utilisateur (tailles, dates en mill…
+- *struct* `pub MovedFile` · L1622
+- *struct* `MoveResult` · L1628
+- `get_photo_details` · L1640 — Contenu de la fenêtre « Infos » du menu contextuel : fichier, EXIF, XMP et IPTC.
+- *struct* `PhotoSidecar` · L1645
+- `get_photo_sidecar` · L1652 — Active `.xmp` sidecar of `path`, if one exists on disk (used by the Info tab).
+- *struct* `FileDates` · L1661 — File dates read from the disk (milliseconds since 1970). `None` when the system does not provide them (creation date on some Linux file sys…
+- `get_file_dates` · L1667
+- `sidecar_to_trash` · L1681 — Sidecar XMP à supprimer avec une photo. « photo.jpg.xmp » (extension complète + .xmp) appartient à ce seul fichier. « photo.xmp » (nom comp…
+- `pub validate_new_name` · L1693 — Nom de fichier ou de dossier saisi par l'utilisateur : un seul niveau, sans caractère interdit par Windows (le même nom reste valide sous L…
+- `pub same_existing_file` · L1708 — True if both paths exist and are the very same file or folder: a case-only rename on Windows or macOS (`img.jpg` -> `IMG.jpg`), which is
+- `reserve_new_file` · L1714 — Creates `path` empty, only if nothing is there (atomic): the name is ours until a rename or copy replaces this placeholder. A file that
+- `rename_photo` · L1722 — Renomme une photo dans son dossier (l'extension est conservée : « IMG.2024.cr2 » + « vacances » -> « vacances.cr2 »). Son sidecar suit : « …
+- `rename_folder` · L1824 — Renomme un dossier de l'arborescence (sous-dossier d'un dossier suivi) sur place. Les photos qu'il contient (sous-dossiers compris) gardent…
+- `delete_photos_with` · L1894 — Suppression vers la corbeille de l'OS (crate `trash`) : le fichier est restaurable depuis la corbeille. Seules les photos du catalogue
+- `delete_photos` · L1957
+- *enum* `WindowsRoot` · L1973 — Windows : la corbeille n'existe que sur les disques fixes (HDD et SSD, y compris les disques externes que Windows voit comme fixes). Une cl…
+- `windows_root` · L1981 — Lecteur (« D:\ ») ou partage UNC d'un chemin, avec « / » ou « \ » et préfixes « \\?\ » acceptés.
+- `will_recycle_from_pre_delete_flags` · L2001 — Returns true when Windows Shell `PreDeleteItem` flags confirm the item will go to the Recycle Bin.
+- `windows_shell_path` · L2007
+- `has_trash_for_root` · L2031
+- `pub has_trash` · L2053
+- `pub has_trash` · L2064
+- `trash_strict_on_sta` · L2069
+- `trash_strict` · L2153 — Moves `path` to the Windows Recycle Bin and aborts before deletion if Windows would permanently delete it.
+- `trash_strict` · L2187
+- `trash_or_delete_if_confirmed` · L2192 — Uses strict verified recycle when `has_trash` promised a Recycle Bin; falls back to `trash::delete` only when the UI already warned of perm…
+- `count_permanent_deletions` · L2203 — Nombre de ces chemins (fichiers ou dossiers) que la suppression n'enverra PAS à la corbeille mais effacera définitivement, d'après leur sup…
+- `is_folder_empty` · L2239 — Vrai si le dossier ne contient aucun fichier (sous-dossiers vides acceptés). Fichiers cachés compris, sauf les fichiers que l'OS recrée seul
+- `get_folder_unrecognized_files` · L2254 — Recense les fichiers présents dans le dossier qui ne sont ni des photos/vidéos gérées par l'application,
+- `delete_folder` · L2293 — Supprime un dossier de l'arborescence (sous-dossier d'un dossier suivi) vers la corbeille de l'OS, avec tout son contenu : sous-dossiers et
+- `tracked_root_is_reachable` · L2344 — Un dossier suivi est « joignable » s'il existe, ou si son dossier parent existe (dossier supprimé ou renommé hors de l'application).
+- `pub is_inside_folder` · L2349
+- `remove_missing_photos` · L2360 — Synchronisation « paresseuse » avec le disque : l'interface signale les photos qu'elle n'arrive pas à afficher
+- `log_temp_leftovers` · L2379 — Logs crash-leftover temporary items found during sync to `<storage>/logs`, once per distinct set in a session.
+- `check_external_modifications` · L2410 — Checks whether any undo target file or its active sidecar was modified externally since the original action.
+- `sync_library` · L2420 — `excluded`: folders of paused scans, left for the scan to read when it is resumed.
+- `sidecar_already_taken` · L2442 — Réserve dans le dossier de destination le premier nom libre (« photo.jpg », puis « photo (1).jpg », « photo (2).jpg »…) en y créant un fich…
+- *struct* `pub Reserved` · L2449 — Name reserved by `reserve_destination`, and the sidecar that made the first choices unusable (to report: the photo gets another name).
+- `pub Reserved::sidecar_rename` · L2455
+- `pub reserve_destination` · L2464
+- `pub copy_sidecar_with` · L2502 — Copie aussi le sidecar XMP (`photo.jpg.xmp` ou `photo.xmp`) : note, couleur et mots-clés des formats autres que JPEG y sont stockés.
+- `pub copy_sidecar` · L2539
+- `pub lowercase_segments` · L2543
+- `set_verify_cross_drive_moves` · L2551
+- `pub flush_to_disk` · L2556 — Asks the system to write `path` physically to its disk (data and size), not just to its write cache.
+- `pub sync_parent_dir` · L2587 — Linux / macOS: a new or renamed file is durable only once its directory entry is, so the folder is flushed too (best effort: some file
+- `source_snapshot` · L2596
+- `copy_durably_with` · L2603 — Copies `source` to `target` (which must be a disposable temporary path), verifies that `source` kept the same
+- `copy_durably` · L2638 — `fs::copy`, then verifies source stability and flushes the copy to disk: once this returns, the copy is coherent and survives a power cut.
+- `file_sha256` · L2643 — Somme SHA-256 d'un fichier, lue par blocs (jamais le fichier entier en mémoire).
+- `pub files_have_same_hash` · L2657
+- `pub remove_copied_target` · L2668 — Déplace un fichier : renommage, ou copie puis suppression de l'original quand le renommage est impossible (autre disque, par exemple).
+- `temp_sibling_path` · L2681
+- `pub copy_atomically_to_reserved_verified` · L2693 — Copies `source` to a unique temporary file in `reserved_target`'s folder, flushes it to disk,
+- `pub copy_atomically_to_reserved` · L2714 — Copies `source` to a unique temporary file in `reserved_target`'s folder, flushes it to disk,
+- `rename_with_retry` · L2719 — Retries a rollback rename briefly in case an antivirus or indexer transiently holds a handle.
+- `pub replace_file_via_backup_with_rename` · L2735
+- `pub replace_file_via_backup` · L2812 — Replaces an existing `target` with `temp` in three reversible steps so the original is never lost on failure
+- `pub replace_file_via_trash_with` · L2820
+- `pub replace_file_via_trash` · L2835 — Replaces an existing `target` with `temp` by sending the previous file to the OS trash.
+- `move_file_via_copy` · L2839
+- `move_file` · L2877
+- `move_sidecar` · L2890 — XMP sidecar of a moved photo: `photo.jpg.xmp` is always moved with it. A compatible `photo.xmp` is moved when no sibling
+- *struct* `StagedSidecar` · L2911
+- `stage_sidecar_for_move` · L2918 — Phase 1 of a photo move: copies the source sidecar atomically to its reserved destination
+- `move_photo_with_sidecar_using` · L2948 — Moves a photo together with its sidecar in two phases: stage sidecar -> move photo -> remove source sidecar (if unshared).
+- *struct* `FileTaskProgress` · L2982 — Suivi d'une tâche de fichiers (déplacement, copie) lancée depuis la file de l'interface : publie l'avancement dans « scan-progress » (pondé…
+- `FileTaskProgress::new` · L2991
+- `FileTaskProgress::cancelled` · L2998
+- `FileTaskProgress::advance` · L3003 — À appeler après chaque fichier traité (réussi ou non) avec sa taille.
+- `FileTaskProgress::drop` · L3013
+- `carry_cache_file` · L3020 — Reporte un fichier du cache (miniature, aperçu RAW) sous son nouveau nom après un déplacement de la photo. Sans nouveau nom, ou si le renom…
+- `move_photos` · L3035 — Déplace des photos du catalogue vers un dossier de l'arborescence (suivi ou sous-dossier d'un dossier suivi), par glisser-déposer.
+- `pub find_copy_conflicts` · L3132 — Fichiers à copier dont le nom existe déjà dans `destination` (le fichier de la destination et celui à copier sont décrits pour la question …
+- `pub copy_replacing_verified_with` · L3159 — Copy that replaces an existing file: written under a temporary name in the destination folder, flushed to the disk,
+- `pub copy_replacing_verified` · L3191
+- `copy_replacing_with` · L3206
+- `pub copy_replacing` · L3214
+- `copy_photos_with_progress` · L3222 — Copie des fichiers originaux (pas des miniatures) dans un dossier. Un fichier déjà présent n'est écrasé que si l'utilisateur l'a demandé :
+- `copy_conflicts` · L3284 — Question « le fichier existe déjà » avant une copie vers un dossier choisi dans la boîte de dialogue de l'OS : liste des fichiers en confli…
+- `copy_photos` · L3289
+- `tracked_copy_conflicts` · L3298 — Même question pour une copie par glisser-déposer (dossier suivi ou sous-dossier).
+- `copy_photos_to_tracked_folder` · L3308 — Copie par glisser-déposer (Ctrl) vers un dossier de l'arborescence : même copie que « Copier vers… » (écrasement seulement sur choix de l'u…
+- `resize_photo` · L3321 — Redimensionne une photo selon les options de la fenêtre « Redimensionner… » (voir resize.rs) : un appel par photo, l'interface pilote le lot
+- `same_program` · L3340
+- `is_allowed_program` · L3344
+- `allow_programs` · L3348
+- `pick_program` · L3361 — OS dialog to choose a program, opened by the backend: the chosen program is allowed for `open_with`. None if the user cancels.
+- `register_existing_programs` · L3375 — Programs already in the Settings before this check existed: allowed once, at the first start that has no list yet; ignored afterwards.
+- `open_with` · L3381 — Ouvre les fichiers avec un programme externe (liste des Paramètres ou programme choisi dans la boîte de dialogue de l'OS).
+- `reveal_in_file_manager` · L3395 — Affiche le fichier dans le gestionnaire de fichiers par défaut de l'OS : dossier ouvert avec le fichier sélectionné
+- `pub write_timestamped_log` · L3402 — Writes `text` to a new file of `logs_dir` (created if needed) named `<prefix>_<date>_<time>.log` after `now`; `-2`, `-3`... are added if the
+- *struct* `pub SidecarRename` · L3424 — Photo moved or copied under another name because a sidecar not its own was already at the destination (see `reserve_destination`).
+- `pub log_sidecar_renames` · L3431 — Log of the renames of one move or copy, in `<storage>/logs`. Returns its path (None if nothing to log, or with the error traced).
+- *struct* `WriteRecoveryReport` · L3452 — Recoveries after failed `ExifTool` writes (see `exiftool::recover_after_failure`), reported once a write operation is over.
+- `log_write_recoveries` · L3459 — Writes every recovery not yet reported to one timestamped file of `<storage folder>/logs`. None when there was nothing to report.
+- `take_write_recoveries` · L3474 — Called by the interface after each metadata write operation: all recoveries since the last call, in a single log file and a single dialog.
+- `open_video_externally` · L3481 — Ouvre une vidéo du catalogue dans le lecteur multimédia par défaut de l'OS (plugin opener déjà intégré) : l'application n'embarque aucun le…
+- `copy_files_to_clipboard` · L3502
+- `read_clipboard_text` · L3527 — Texte du presse-papiers, pour « Coller » dans le menu des champs de saisie (le navigateur intégré demanderait une autorisation pour le lire…
+- `write_clipboard_text` · L3538 — Copie un texte dans le presse-papiers (coordonnées du groupe Lieu) : l'écriture par le navigateur intégré peut être refusée.
+- `clipboard_entry` · L3550 — Format attendu par clipboard-rs pour set_files : sous Windows, les chemins tels quels (la crate construit elle-même la liste CF_HDROP ;
+- `clipboard_entry` · L3555
+- `file_uri` · L3561 — URI « file:/// » avec caractères spéciaux encodés en %XX (ex. /home/x/a b.jpg -> file:///home/x/a%20b.jpg).
+- `main` · L3575
+- `move_file_or_copy` · L3934 — Fonctions de déplacmeents des fichiers de base
+- `copy_dir_recursive` · L3955 — `durable`: each copy is flushed to the disk (see `copy_durably`), for data that cannot be rebuilt once the old location is removed.
+- `remove_storage` · L3973 — Supprime les fichiers et dossiers de données d'un dossier de stockage (au mieux : un échec est tracé, rien n'est jamais bloquant).
+- `copy_storage` · L3990 — Copie (sans rien supprimer à la source) la base et les dossiers de données vers `to`. La base est copiée pendant qu'une transaction d'écrit…
+- *struct* `StorageLocationInfo` · L4018
+- `get_storage_location` · L4025
+- `change_storage_location` · L4035
 
 ## model_files.rs (11)
 

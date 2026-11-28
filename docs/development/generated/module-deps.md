@@ -10,8 +10,9 @@ Static dependency graph, to evaluate the consequences of a change before making 
 | Module | Uses | Used by |
 |---|---|---|
 | `albums` | db, main, privacy | db |
+| `app_log` | — | db |
 | `batch_rename` | exiftool, main, semantic | db |
-| `db` | albums, batch_rename, duplicates, faces, geolocation, import, keywords, main, privacy, private_maps, rights, semantic, similar | albums, duplicates, faces, geolocation, hash_tasks, import, integrity, keywords, library_sync, private_maps, semantic, similar, stats, test_support |
+| `db` | albums, app_log, batch_rename, duplicates, faces, geolocation, import, keywords, main, privacy, private_maps, rights, semantic, similar | albums, duplicates, faces, geolocation, hash_tasks, import, integrity, keywords, library_sync, private_maps, semantic, similar, stats, test_support |
 | `duplicates` | db, privacy, semantic, thumbnails, video | db, hash_tasks, import, integrity, semantic, similar, stats |
 | `exif` | exiftool, face_detect, faces, heif, library_sync, orientation, thumbnails, video | exiftool, faces, geolocation, keywords, library_sync, orientation, place_search, resize, rights, thumbnails |
 | `exiftool` | exif, faces, heif, main | batch_rename, exif, geolocation, orientation |

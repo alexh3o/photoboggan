@@ -1,6 +1,7 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
 mod albums;
+mod app_log;
 mod batch_rename;
 mod db;
 mod duplicates;
@@ -1200,7 +1201,7 @@ fn insert_batch(conn: &rusqlite::Connection, photos: &[Photo]) -> rusqlite::Resu
 #[tauri::command]
 fn get_photos_by_paths(state: State<'_, AppState>, paths: Vec<String>) -> Vec<Photo> {
     db::get_photos_by_paths(&state.pool(), &paths).unwrap_or_else(|error| {
-        eprintln!("Photos by path unavailable: {error}");
+        app_log::log_error("Photos by path unavailable", error);
         Vec::new()
     })
 }
@@ -1209,7 +1210,7 @@ fn get_photos_by_paths(state: State<'_, AppState>, paths: Vec<String>) -> Vec<Ph
 #[tauri::command]
 fn get_photos_by_ids(state: State<'_, AppState>, ids: Vec<i64>) -> Vec<Photo> {
     db::get_photos_by_ids(&state.pool(), &ids).unwrap_or_else(|error| {
-        eprintln!("Photos by id unavailable: {error}");
+        app_log::log_error("Photos by id unavailable", error);
         Vec::new()
     })
 }
@@ -1225,7 +1226,7 @@ fn get_photos_paginated(state: State<'_, AppState>, offset: i32, limit: i32, fol
     let prefilter = prefilter.unwrap_or_default();
     // L'interface attend une liste : une erreur est tracée et donne une liste vide plutôt qu'un rejet de la commande.
     db::get_photos_filtered(&pool, offset, limit, folder_filter, recursive, sort_key.as_deref().unwrap_or("taken"), ascending, &prefilter).unwrap_or_else(|error| {
-        eprintln!("Photo list unavailable: {error}");
+        app_log::log_error("Photo list unavailable", error);
         Vec::new()
     })
 }
@@ -1234,7 +1235,7 @@ fn get_photos_paginated(state: State<'_, AppState>, offset: i32, limit: i32, fol
 // the warning shown when the list is capped. An error gives `None`: the interface then shows no number rather than a wrong one.
 #[tauri::command(async)]
 fn count_photos(state: State<'_, AppState>, folder_filter: Option<String>, recursive: bool, prefilter: Option<db::PhotoPrefilter>) -> Option<i64> {
-    db::count_photos(&state.pool(), folder_filter, recursive, &prefilter.unwrap_or_default()).map_err(|error| eprintln!("Photo count unavailable: {error}")).ok()
+    db::count_photos(&state.pool(), folder_filter, recursive, &prefilter.unwrap_or_default()).map_err(|error| app_log::log_error("Photo count unavailable", error)).ok()
 }
 
 // Photos et vidéos de chaque dossier du catalogue (niveau direct), pour l'option « Montrer le nombre de photos des dossiers ».
@@ -1242,7 +1243,7 @@ fn count_photos(state: State<'_, AppState>, folder_filter: Option<String>, recur
 fn get_folder_counts(state: State<'_, AppState>) -> std::collections::HashMap<String, i64> {
     let pool = state.pool();
     db::get_folder_counts(&pool).unwrap_or_else(|error| {
-        eprintln!("Folder counts unavailable: {error}");
+        app_log::log_error("Folder counts unavailable", error);
         std::collections::HashMap::new()
     })
 }
@@ -3589,8 +3590,7 @@ fn main() {
             private_maps::init_bundled_style(handle.path().resource_dir().ok());
             let fail_startup = |message: &str| -> ! {
                 use tauri_plugin_dialog::{DialogExt, MessageDialogKind};
-                #[cfg(debug_assertions)]
-                eprintln!("Startup failed: {message}");
+                app_log::log_error("Startup failed", message);
                 handle
                     .dialog()
                     .message(message)
@@ -3603,6 +3603,7 @@ fn main() {
             let paths = resolve_app_paths(handle).unwrap_or_else(|error| {
                 fail_startup(&format!("Impossible d'initialiser les chemins de l'application :\n{error}"))
             });
+            app_log::set_logs_dir(paths.base_dir.join("logs"));
             let db_pool = db::init_db(&paths.db_path.to_string_lossy()).unwrap_or_else(|error| {
                 fail_startup(&format!("Impossible d'ouvrir le catalogue ({}) :\n{error}", paths.db_path.display()))
             });
@@ -4111,6 +4112,7 @@ fn change_storage_location(
     }
 
     // 5. Ancien emplacement nettoyé (au mieux : un processus extérieur peut encore garder la base ouverte).
+    app_log::set_logs_dir(target_dir.join("logs"));
     drop(paths_guard);
     drop(pool_guard);
     drop(current_pool);

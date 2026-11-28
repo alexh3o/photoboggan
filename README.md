@@ -138,7 +138,7 @@ Maps and places:
 
 Photos from Lorem Picsum / Unsplash / Pexels.
 
-Designed and developed by alexh3o, sped up with the precious help of Claude & friends.
+**A word about AI**: I did use AI coding agents quite extensively during development. However, they worked within fairly strict requirements and constraints, with human supervision, code reviews and testing throughout.
 
 ---
 

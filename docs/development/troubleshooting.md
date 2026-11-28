@@ -1,4 +1,4 @@
-<!-- verified: 4b5d375 | sources: src-tauri/src/main.rs, src-tauri/src/exiftool.rs, src-tauri/src/integrity.rs, src-tauri/src/db.rs, src-tauri/tauri.conf.json -->
+<!-- verified: 5d634f7 | sources: src-tauri/src/main.rs, src-tauri/src/app_log.rs, src-tauri/src/exiftool.rs, src-tauri/src/integrity.rs, src-tauri/src/db.rs, src-tauri/tauri.conf.json -->
 # Troubleshooting
 
 Only problems visible in the code. Each entry: symptom → likely cause (named) → how to check → what to do. Entries that rest on a reading of one place only are marked `⚠ unverified`.
@@ -7,7 +7,7 @@ Only problems visible in the code. Each entry: symptom → likely cause (named) 
 
 | What | Where |
 |---|---|
-| Backend messages | `eprintln!` output of the process: run `npm run tauri dev` and read its terminal. No log file for general errors. |
+| Backend messages | Critical startup and catalogue errors go to `<data dir>/logs/app.log` (rotated to `app.log.old` above 512 KiB, `app_log.rs`) and `stderr` in debug builds; other `eprintln!` messages appear in the `npm run tauri dev` terminal. |
 | Frontend errors | Webview console (devtools in dev); many are `console.error` with a French message. |
 | User-visible failures | Toasts, the "Hourglass" task list, and failure dialogs of writes (`failureDetailsAction` in `metadata-writes.js`). |
 | Write recoveries | `<data dir>/logs/write-recovery_<date>_<time>.log` (`exiftool::write_recovery_log`, one file per operation, `-2`, `-3`… added if the name exists), reported by the dialog after `take_write_recoveries`. |

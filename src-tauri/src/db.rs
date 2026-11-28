@@ -206,7 +206,7 @@ pub fn init_db(db_path: &str) -> Result<DbPool, String> {
     crate::semantic::init_schema(&conn).map_err(|e| format!("Semantic search tables could not be created: {e}"))?;
     // Map private zones: see private_maps.rs (loaded in memory on open for the per-tile rule).
     crate::private_maps::init_schema(&conn).map_err(|e| format!("Private zone table could not be created: {e}"))?;
-    if let Err(error) = crate::private_maps::reload_zones(&conn) { eprintln!("Private zones unavailable: {error}"); }
+    if let Err(error) = crate::private_maps::reload_zones(&conn) { crate::app_log::log_error("Private zones unavailable", error); }
     // Import history & removable media policies: see import.rs.
     crate::import::init_schema(&conn).map_err(|e| format!("Import tables could not be created: {e}"))?;
 
@@ -217,7 +217,7 @@ pub fn get_folders(pool: &DbPool) -> Vec<TrackedFolder> {
     let conn = match pool.get() {
         Ok(conn) => conn,
         Err(error) => {
-            eprintln!("Tracked folders unavailable (no connection): {error}");
+            crate::app_log::log_error("Tracked folders unavailable (no connection)", error);
             return Vec::new();
         }
     };
@@ -227,7 +227,7 @@ pub fn get_folders(pool: &DbPool) -> Vec<TrackedFolder> {
         rows.collect()
     })();
     folders.unwrap_or_else(|error| {
-        eprintln!("Tracked folders unavailable: {error}");
+        crate::app_log::log_error("Tracked folders unavailable", error);
         Vec::new()
     })
 }
