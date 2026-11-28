@@ -1,4 +1,4 @@
-<!-- verified: 4b5d375 | sources: src-tauri/src/privacy.rs, src/privacy.js, src/privacy.css -->
+<!-- verified: 7435012 | sources: src-tauri/src/privacy.rs, src/privacy.js, src/privacy.css -->
 
 # Private photos and privacy sets
 
@@ -8,7 +8,7 @@ Hides sensitive photos across the grid, folder tree, albums, people/faces views,
 ## Files
 | File | Role |
 |---|---|
-| `privacy.rs` | `PrivacySet` criteria, `ACTIVE` state, startup `restore`, `set_privacy_sets` (persisted in `config.json`), SQL helpers (`visible_condition`, `hidden_persons_sql`, `visible_person_condition`), `is_active`, `is_private_folder`, `get_privacy_hidden_keywords`. |
+| `privacy.rs` | `PrivacySet` criteria, `ACTIVE` state, startup `restore`, `set_privacy_sets` (persisted in `config.json`), SQL helpers (`visible_condition`, `hidden_persons_sql`, `visible_person_condition`), `is_active`, `is_private_folder`. |
 | `privacy.js` | Set editor (Settings > Misc), shield button and dropdown menu (`#privacy-shield`, `#privacy-menu`), `parseDateRange`, `syncPrivacyToBackend`, `onPrivacyChange`, `isHiddenKeyword`, `hasActivePrivacy`. |
 | `privacy.css` | Shield icon states, fixed-position set menu (`.privacy-menu.keyword-suggestions`), and settings editor layout (set card, label | field grids). |
 
@@ -43,7 +43,7 @@ An empty set (`PrivacySet::is_empty`) hides nothing. Multiple active sets are me
 **Shield, privacy lock, and folder deletion.** When `privacyEnabled` is on, `#privacy-shield-wrap` is shown in the Filters header (green when sets are active). With `privacyLock` checked (`isPrivacyLocked`), clicking the shield does nothing and active sets can only be changed in Settings; the shield tooltip and `aria-label` then use `Private photos locked: {sets}`, which says where to change it. In Settings the option is labelled "Lock the shield" (key `Privacy lock`). Folder deletion (`deleteFolderToTrash` in `main.js`, `delete_folder` in `main.rs`) is refused while any set is active (`hasActivePrivacy()` / `privacy::is_active()`), preventing unseen hidden photos from being trashed with their folder.
 
 ## Contracts
-- IPC commands: `set_privacy_sets`, `get_privacy_hidden_keywords` (`../generated/ipc-commands.md`; `get_privacy_hidden_keywords` has no JS caller because `privacy.js` computes `hiddenKeywordKeys()` locally). The Settings keyword field also calls `get_keyword_tree` and `get_keyword_usage` (owned by the keyword modules).
+- IPC commands: `set_privacy_sets` (`../generated/ipc-commands.md`). The Settings keyword field also calls `get_keyword_tree` and `get_keyword_usage` (owned by the keyword modules).
 - Events: none.
 - Database: owns no tables; reads `photos` (`id`, `path`, `date_taken`, `created`, `modified`), `photo_keywords`, `keyword_nodes`, `persons` (`../generated/db-schema.md`).
 - Settings: `privacyEnabled`, `privacyLock` (`../generated/config.md`); `privacySets`, `privacyActive` in `localStorage` (no entry in `defaults.jsonc`); `AppConfig.privacy_sets` in `config.json`.

@@ -1,4 +1,4 @@
-<!-- verified: 97bad78 | sources: src-tauri/src/db.rs, src-tauri/src/library_sync.rs, src-tauri/src/scan.rs, src-tauri/src/main.rs, src-tauri/src/tests/db.rs, src-tauri/src/tests/library_sync.rs -->
+<!-- verified: 7435012 | sources: src-tauri/src/db.rs, src-tauri/src/library_sync.rs, src-tauri/src/scan.rs, src-tauri/src/main.rs, src-tauri/src/tests/db.rs, src-tauri/src/tests/library_sync.rs -->
 # Library, scan and database
 
 ## Purpose

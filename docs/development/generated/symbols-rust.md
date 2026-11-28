@@ -1078,13 +1078,13 @@ Functions (free and `impl` methods), structs, enums and traits of each `src-taur
 - `file_uri` · L3202 — URI « file:/// » avec caractères spéciaux encodés en %XX (ex. /home/x/a b.jpg -> file:///home/x/a%20b.jpg).
 - `pub init_catalog` · L3217 — Opens the core SQLite pool (`db::init_core`) and initializes every feature module's schema.
 - `main` · L3247
-- `move_file_or_copy` · L3606 — Fonctions de déplacmeents des fichiers de base
-- `copy_dir_recursive` · L3627 — `durable`: each copy is flushed to the disk (see `copy_durably`), for data that cannot be rebuilt once the old location is removed.
-- `remove_storage` · L3645 — Supprime les fichiers et dossiers de données d'un dossier de stockage (au mieux : un échec est tracé, rien n'est jamais bloquant).
-- `copy_storage` · L3662 — Copie (sans rien supprimer à la source) la base et les dossiers de données vers `to`. La base est copiée pendant qu'une transaction d'écrit…
-- *struct* `StorageLocationInfo` · L3690
-- `get_storage_location` · L3697
-- `change_storage_location` · L3707
+- `move_file_or_copy` · L3605 — Fonctions de déplacmeents des fichiers de base
+- `copy_dir_recursive` · L3626 — `durable`: each copy is flushed to the disk (see `copy_durably`), for data that cannot be rebuilt once the old location is removed.
+- `remove_storage` · L3644 — Supprime les fichiers et dossiers de données d'un dossier de stockage (au mieux : un échec est tracé, rien n'est jamais bloquant).
+- `copy_storage` · L3661 — Copie (sans rien supprimer à la source) la base et les dossiers de données vers `to`. La base est copiée pendant qu'une transaction d'écrit…
+- *struct* `StorageLocationInfo` · L3689
+- `get_storage_location` · L3696
+- `change_storage_location` · L3706
 
 ## model_files.rs (11)
 
@@ -1144,7 +1144,7 @@ Functions (free and `impl` methods), structs, enums and traits of each `src-taur
 - `parse_places` · L32 — Lieux d'une réponse JSON de Nominatim (`format=jsonv2`) ; les entrées sans coordonnées valides sont ignorées.
 - `pub search_places` · L48 — Lieux correspondant au texte. Erreur « `internet_disabled` » en mode hors ligne.
 
-## privacy.rs (23)
+## privacy.rs (22)
 
 - *struct* `pub PathCriterion` · L21 — Un critère de chemin : texte (la casse et les « / » de bord sont normalisés ici), complet (élément de chemin entier) ou partiel (sous-chaîn…
 - *struct* `pub DateRange` · L30 — Plage de dates inclusive. Bornes au format `YYYYMMDDHHmmss` (une date incomplète couvre toute sa période : « 2024 » va du 1er janvier
@@ -1168,7 +1168,6 @@ Functions (free and `impl` methods), structs, enums and traits of each `src-taur
 - `pub hidden_persons_sql` · L207 — SQL des identifiants des personnes masquées : celles dont le mot-clé lié (`persons.keyword_node_id`) est un mot-clé de l'ensemble actif.
 - `pub visible_person_condition` · L220 — Condition SQL « `column` (identifiant de personne) n'est pas une personne masquée » ; vaut « 1 » si aucune ne l'est.
 - `pub is_private_folder` · L230 — Le dossier (chemin du disque) est-il masqué par un critère de CHEMIN de l'ensemble actif ? Les dossiers dont toutes les photos sont masquées
-- `pub get_privacy_hidden_keywords` · L248 — Mots-clés masqués par l'ensemble actif (clés en minuscules) : l'interface les retire des listes de filtres de mots-clés,
 
 ## private_maps.rs (74)
 
