@@ -203,6 +203,7 @@ svg[width="24"]:not(.titlebar svg) { width: 1.5rem; height: 1.5rem; }
 .update-notes ul { margin: 0 0 0.4rem 1.1rem; }
 .update-notes p { margin: 0.2rem 0; }
 .update-actions { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 0.5rem; margin-top: 1rem; }
+.update-actions .btn-highlight { margin-bottom: 0; padding: 6px 0.875rem; }
 .accent-picker { display: flex; align-items: center; gap: 8px; }
 .accent-swatch, .button-swatch { width: 1.4rem; height: 1.4rem; padding: 0; border-radius: 50%; }
 .accent-swatch.active, .button-swatch.active { outline: 2px solid var(--btn-text); outline-offset: 2px; }

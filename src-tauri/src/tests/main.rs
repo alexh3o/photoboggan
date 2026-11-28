@@ -635,3 +635,174 @@ fn copy_replacing_rejects_same_file_and_sidecar_overwrite_protects_shared_xmp() 
     assert_eq!(fs::read(&dst_shared_xmp).unwrap(), b"shared-raw-xmp");
     assert_eq!(fs::read(dst_dir.join("photo.jpg.xmp")).unwrap(), b"jpg-xmp");
 }
+
+#[test]
+fn copy_sidecar_non_overwrite_redirects_away_from_shared_destination_xmp() {
+    let dir = tempfile::tempdir().unwrap();
+    let (src_dir, dst_dir) = (dir.path().join("src"), dir.path().join("dst"));
+    fs::create_dir_all(&src_dir).unwrap();
+    fs::create_dir_all(&dst_dir).unwrap();
+
+    let src_raw = src_dir.join("photo.cr2");
+    put(&src_raw, b"raw");
+    put(&src_dir.join("photo.xmp"), b"incoming-xmp");
+
+    let dst_raw = dst_dir.join("photo.cr2");
+    put(&dst_dir.join("photo.jpg"), b"existing-jpg");
+    put(&dst_dir.join("photo.xmp"), b"existing-jpg-xmp");
+
+    copy_sidecar(&src_raw, &dst_raw, false).unwrap();
+
+    assert_eq!(fs::read(dst_dir.join("photo.xmp")).unwrap(), b"existing-jpg-xmp");
+    assert_eq!(fs::read(dst_dir.join("photo.cr2.xmp")).unwrap(), b"incoming-xmp");
+}
+
+#[test]
+fn move_photo_with_sidecar_stages_sidecar_first_and_redirects_shared_xmp() {
+    let dir = tempfile::tempdir().unwrap();
+    let (src_dir, dst_dir) = (dir.path().join("src"), dir.path().join("dst"));
+    fs::create_dir_all(&src_dir).unwrap();
+    fs::create_dir_all(&dst_dir).unwrap();
+
+    // 1. Unshared src/photo.xmp with dst/photo.jpg + dst/photo.xmp -> redirects to dst/photo.cr2.xmp and removes src/photo.xmp.
+    let src_raw = src_dir.join("photo.cr2");
+    let dst_raw = dst_dir.join("photo.cr2");
+    put(&src_raw, b"raw-1");
+    put(&src_dir.join("photo.xmp"), b"raw-1-xmp");
+    put(&dst_dir.join("photo.jpg"), b"dst-jpg");
+    put(&dst_dir.join("photo.xmp"), b"dst-jpg-xmp");
+    reserve_new_file(&dst_raw).unwrap();
+
+    let warning = move_photo_with_sidecar_using(&src_raw, &dst_raw, Some(false), move_file).unwrap();
+    assert!(warning.is_none());
+    assert!(!src_raw.exists());
+    assert!(!src_dir.join("photo.xmp").exists());
+    assert_eq!(fs::read(&dst_raw).unwrap(), b"raw-1");
+    assert_eq!(fs::read(dst_dir.join("photo.xmp")).unwrap(), b"dst-jpg-xmp");
+    assert_eq!(fs::read(dst_dir.join("photo.cr2.xmp")).unwrap(), b"raw-1-xmp");
+
+    // 2. Shared src/pair.xmp (source_has_sibling == Some(true)) -> keeps src/pair.xmp intact.
+    let src_pair = src_dir.join("pair.cr2");
+    let dst_pair = dst_dir.join("pair.cr2");
+    put(&src_pair, b"pair-raw");
+    put(&src_dir.join("pair.xmp"), b"pair-xmp");
+    reserve_new_file(&dst_pair).unwrap();
+    move_photo_with_sidecar_using(&src_pair, &dst_pair, Some(true), move_file).unwrap();
+    assert_eq!(fs::read(src_dir.join("pair.xmp")).unwrap(), b"pair-xmp");
+    assert_eq!(fs::read(dst_dir.join("pair.xmp")).unwrap(), b"pair-xmp");
+
+    // 3. Sidecar staging fails (dst/fail.cr2.xmp already exists) -> photo stays at source and reserved placeholder is removed.
+    let src_fail = src_dir.join("fail.cr2");
+    let dst_fail = dst_dir.join("fail.cr2");
+    put(&src_fail, b"fail-raw");
+    put(&src_dir.join("fail.cr2.xmp"), b"new-xmp");
+    put(&dst_dir.join("fail.cr2.xmp"), b"existing-xmp");
+    reserve_new_file(&dst_fail).unwrap();
+    let err = move_photo_with_sidecar_using(&src_fail, &dst_fail, Some(false), move_file).unwrap_err();
+    assert!(err.contains("Sidecar XMP"), "{err}");
+    assert_eq!(fs::read(&src_fail).unwrap(), b"fail-raw");
+    assert!(!dst_fail.exists(), "reserved placeholder must be removed when sidecar staging fails");
+    assert_eq!(fs::read(dst_dir.join("fail.cr2.xmp")).unwrap(), b"existing-xmp");
+
+    // 4. Photo move fails after sidecar staging -> staged destination sidecar is removed and source remains intact.
+    let src_io = src_dir.join("iofail.cr2");
+    let dst_io = dst_dir.join("iofail.cr2");
+    put(&src_io, b"io-raw");
+    put(&src_io.with_extension("cr2.xmp"), b"io-xmp");
+    reserve_new_file(&dst_io).unwrap();
+    let err = move_photo_with_sidecar_using(&src_io, &dst_io, Some(false), |_, _| {
+        Err(std::io::Error::other("disk error"))
+    })
+    .unwrap_err();
+    assert!(err.contains("disk error"), "{err}");
+    assert_eq!(fs::read(&src_io).unwrap(), b"io-raw");
+    assert_eq!(fs::read(src_io.with_extension("cr2.xmp")).unwrap(), b"io-xmp");
+    assert!(!dst_io.exists());
+    assert!(!dst_dir.join("iofail.cr2.xmp").exists());
+}
+
+#[test]
+fn replace_file_via_backup_reports_backup_path_when_rollback_fails() {
+    let dir = tempfile::tempdir().unwrap();
+
+    // Branch 1: forward rename(temp, target) fails AND rollback rename(backup, target) fails.
+    let target1 = dir.path().join("photo1.jpg");
+    let temp1 = dir.path().join(".photoboggan-tmp-1");
+    put(&target1, b"original-1");
+    put(&temp1, b"new-1");
+    let err1 = replace_file_via_backup_with_rename(
+        &temp1,
+        &target1,
+        |_| Ok(()),
+        |from, to| {
+            if from == temp1 {
+                Err(std::io::Error::new(std::io::ErrorKind::PermissionDenied, "locked"))
+            } else {
+                fs::rename(from, to)
+            }
+        },
+        |_from, _to| Err(std::io::Error::new(std::io::ErrorKind::PermissionDenied, "restore locked")),
+    )
+    .unwrap_err();
+    assert!(err1.contains(".photoboggan-backup-"), "{err1}");
+    assert!(err1.contains("photo1.jpg"), "{err1}");
+    assert!(!temp1.exists());
+    let backup_entry1 = fs::read_dir(dir.path())
+        .unwrap()
+        .map(|e| e.unwrap().path())
+        .find(|p| p.file_name().unwrap().to_string_lossy().starts_with(".photoboggan-backup-"))
+        .expect("backup dir must be preserved when rollback fails");
+    assert_eq!(fs::read(backup_entry1.join("photo1.jpg")).unwrap(), b"original-1");
+    fs::remove_dir_all(&backup_entry1).unwrap();
+
+    // Branch 2: trash fails AND rollback rename(target, temp) fails.
+    let target2 = dir.path().join("photo2.jpg");
+    let temp2 = dir.path().join(".photoboggan-tmp-2");
+    put(&target2, b"original-2");
+    put(&temp2, b"new-2");
+    let err2 = replace_file_via_backup_with_rename(
+        &temp2,
+        &target2,
+        |_| Err("trash disabled".into()),
+        |from, to| fs::rename(from, to),
+        |_from, _to| Err(std::io::Error::new(std::io::ErrorKind::PermissionDenied, "rollback locked")),
+    )
+    .unwrap_err();
+    assert!(err2.contains(".photoboggan-backup-"), "{err2}");
+    assert!(!err2.contains("il n'est pas remplacé"), "must not falsely claim target was not replaced: {err2}");
+    let backup_entry2 = fs::read_dir(dir.path())
+        .unwrap()
+        .map(|e| e.unwrap().path())
+        .find(|p| p.file_name().unwrap().to_string_lossy().starts_with(".photoboggan-backup-"))
+        .expect("backup dir must be preserved when rollback fails");
+    assert_eq!(fs::read(backup_entry2.join("photo2.jpg")).unwrap(), b"original-2");
+}
+
+#[test]
+fn recycle_guard_and_windows_shell_path_work_as_expected() {
+    assert!(will_recycle_from_pre_delete_flags(TSF_DELETE_RECYCLE_IF_POSSIBLE_FLAG));
+    assert!(will_recycle_from_pre_delete_flags(0x04 | TSF_DELETE_RECYCLE_IF_POSSIBLE_FLAG));
+    assert!(!will_recycle_from_pre_delete_flags(0));
+    assert!(!will_recycle_from_pre_delete_flags(0x04));
+
+    assert_eq!(
+        windows_shell_path(Path::new(r"\\?\D:\Photos\a.jpg")).unwrap(),
+        PathBuf::from(r"D:\Photos\a.jpg")
+    );
+    assert_eq!(
+        windows_shell_path(Path::new(r"\\?\UNC\server\share\a.jpg")).unwrap(),
+        PathBuf::from(r"\\server\share\a.jpg")
+    );
+
+    #[cfg(windows)]
+    {
+        assert!(!has_trash(r"Q:\nonexistent\photo.jpg"));
+        assert_eq!(
+            count_permanent_deletions(vec![
+                r"\\server\share\a.jpg".to_string(),
+                r"\\server\share\b.jpg".to_string(),
+            ]),
+            2
+        );
+    }
+}

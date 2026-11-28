@@ -1961,7 +1961,7 @@ fn delete_photos(state: State<'_, AppState>, paths: Vec<String>) -> Result<Delet
         &state.thumbnails_dir(),
         &state.raw_previews_dir(),
         paths,
-        |path| trash::delete(path).map_err(|error| error.to_string()),
+        trash_or_delete_if_confirmed,
     )
 }
 
@@ -1995,21 +1995,70 @@ fn windows_root(path: &str) -> WindowsRoot {
     }
 }
 
+const TSF_DELETE_RECYCLE_IF_POSSIBLE_FLAG: u32 = 0x80;
+
+/// Returns true when Windows Shell `PreDeleteItem` flags confirm the item will go to the Recycle Bin.
+fn will_recycle_from_pre_delete_flags(dw_flags: u32) -> bool {
+    (dw_flags & TSF_DELETE_RECYCLE_IF_POSSIBLE_FLAG) != 0
+}
+
+#[cfg(any(windows, test))]
+#[allow(dead_code)]
+fn windows_shell_path(path: &Path) -> Result<PathBuf, String> {
+    let abs = if path.is_absolute() {
+        path.to_path_buf()
+    } else {
+        std::env::current_dir()
+            .map_err(|error| format!("Dossier courant introuvable : {error}"))?
+            .join(path)
+    };
+    let normalized = abs.to_string_lossy().replace('/', "\\");
+    let cleaned = if let Some(unc) = normalized.strip_prefix(r"\\?\UNC\") {
+        format!(r"\\{unc}")
+    } else if let Some(rest) = normalized.strip_prefix(r"\\?\") {
+        if rest.len() < 260 {
+            rest.to_string()
+        } else {
+            normalized
+        }
+    } else {
+        normalized
+    };
+    Ok(PathBuf::from(cleaned))
+}
+
+#[cfg(windows)]
+fn has_trash_for_root(root: &WindowsRoot) -> bool {
+    use windows::core::PCWSTR;
+    use windows::Win32::Storage::FileSystem::GetDriveTypeW;
+    use windows::Win32::UI::Shell::{SHQueryRecycleBinW, SHQUERYRBINFO};
+    const DRIVE_FIXED: u32 = 3;
+    match root {
+        WindowsRoot::Unc | WindowsRoot::Other => false,
+        WindowsRoot::Drive(drive_root) => {
+            let wide: Vec<u16> = drive_root.encode_utf16().chain(std::iter::once(0)).collect();
+            if unsafe { GetDriveTypeW(PCWSTR(wide.as_ptr())) } != DRIVE_FIXED {
+                return false;
+            }
+            let mut info = SHQUERYRBINFO {
+                cbSize: std::mem::size_of::<SHQUERYRBINFO>() as u32,
+                ..Default::default()
+            };
+            unsafe { SHQueryRecycleBinW(PCWSTR(wide.as_ptr()), &mut info) }.is_ok()
+        }
+    }
+}
+
 #[cfg(windows)]
 pub(crate) fn has_trash(path: &str) -> bool {
-    #[link(name = "kernel32")]
-    extern "system" {
-        fn GetDriveTypeW(root_path_name: *const u16) -> u32;
-    }
-    match windows_root(path) {
-        WindowsRoot::Unc => false,
-        WindowsRoot::Drive(root) => {
-            let wide: Vec<u16> = root.encode_utf16().chain(std::iter::once(0)).collect();
-            // 2 = amovible (clé USB), 4 = réseau, 5 = CD/DVD, 6 = disque RAM. Les autres cas (fixe, inconnu) sont considérés avec corbeille.
-            !matches!(unsafe { GetDriveTypeW(wide.as_ptr()) }, 2 | 4 | 5 | 6)
-        }
-        WindowsRoot::Other => true,
-    }
+    let root = match windows_root(path) {
+        WindowsRoot::Other => std::env::current_dir()
+            .ok()
+            .map(|cwd| windows_root(&cwd.join(path).to_string_lossy()))
+            .unwrap_or(WindowsRoot::Other),
+        other => other,
+    };
+    has_trash_for_root(&root)
 }
 
 #[cfg(not(windows))]
@@ -2017,11 +2066,173 @@ pub(crate) fn has_trash(_path: &str) -> bool {
     true
 }
 
+#[cfg(windows)]
+fn trash_strict_on_sta(shell_path: &Path) -> Result<(), String> {
+    use std::sync::atomic::{AtomicBool, Ordering};
+    use std::sync::Arc;
+    use windows::core::{implement, HRESULT, PCWSTR, Ref};
+    use windows::Win32::Foundation::E_ABORT;
+    use windows::Win32::System::Com::{CoCreateInstance, CLSCTX_ALL};
+    use windows::Win32::UI::Shell::{
+        FileOperation, IFileOperation, IFileOperationProgressSink, IFileOperationProgressSink_Impl,
+        IShellItem, SHCreateItemFromParsingName, FOFX_EARLYFAILURE, FOFX_RECYCLEONDELETE, FOF_ALLOWUNDO,
+        FOF_NO_UI,
+    };
+
+    #[implement(IFileOperationProgressSink)]
+    struct RecycleOnlySink {
+        rejected_permanent: Arc<AtomicBool>,
+    }
+
+    impl IFileOperationProgressSink_Impl for RecycleOnlySink_Impl {
+        fn StartOperations(&self) -> windows::core::Result<()> { Ok(()) }
+        fn FinishOperations(&self, _hrresult: HRESULT) -> windows::core::Result<()> { Ok(()) }
+        fn PreRenameItem(&self, _dwflags: u32, _psiitem: Ref<'_, IShellItem>, _psznewname: &PCWSTR) -> windows::core::Result<()> { Ok(()) }
+        fn PostRenameItem(&self, _dwflags: u32, _psiitem: Ref<'_, IShellItem>, _psznewname: &PCWSTR, _hrrename: HRESULT, _psinewlycreated: Ref<'_, IShellItem>) -> windows::core::Result<()> { Ok(()) }
+        fn PreMoveItem(&self, _dwflags: u32, _psiitem: Ref<'_, IShellItem>, _psidestinationfolder: Ref<'_, IShellItem>, _psznewname: &PCWSTR) -> windows::core::Result<()> { Ok(()) }
+        fn PostMoveItem(&self, _dwflags: u32, _psiitem: Ref<'_, IShellItem>, _psidestinationfolder: Ref<'_, IShellItem>, _psznewname: &PCWSTR, _hrmove: HRESULT, _psinewlycreated: Ref<'_, IShellItem>) -> windows::core::Result<()> { Ok(()) }
+        fn PreCopyItem(&self, _dwflags: u32, _psiitem: Ref<'_, IShellItem>, _psidestinationfolder: Ref<'_, IShellItem>, _psznewname: &PCWSTR) -> windows::core::Result<()> { Ok(()) }
+        fn PostCopyItem(&self, _dwflags: u32, _psiitem: Ref<'_, IShellItem>, _psidestinationfolder: Ref<'_, IShellItem>, _psznewname: &PCWSTR, _hrcopy: HRESULT, _psinewlycreated: Ref<'_, IShellItem>) -> windows::core::Result<()> { Ok(()) }
+        fn PreDeleteItem(&self, dwflags: u32, _psiitem: Ref<'_, IShellItem>) -> windows::core::Result<()> {
+            if !will_recycle_from_pre_delete_flags(dwflags) {
+                self.rejected_permanent.store(true, Ordering::SeqCst);
+                return Err(E_ABORT.into());
+            }
+            Ok(())
+        }
+        fn PostDeleteItem(&self, _dwflags: u32, _psiitem: Ref<'_, IShellItem>, _hrdelete: HRESULT, _psinewlycreated: Ref<'_, IShellItem>) -> windows::core::Result<()> { Ok(()) }
+        fn PreNewItem(&self, _dwflags: u32, _psidestinationfolder: Ref<'_, IShellItem>, _psznewname: &PCWSTR) -> windows::core::Result<()> { Ok(()) }
+        fn PostNewItem(&self, _dwflags: u32, _psidestinationfolder: Ref<'_, IShellItem>, _psznewname: &PCWSTR, _psztemplatename: &PCWSTR, _dwfileattributes: u32, _hrnew: HRESULT, _psinewitem: Ref<'_, IShellItem>) -> windows::core::Result<()> { Ok(()) }
+        fn UpdateProgress(&self, _iworktotal: u32, _iworksofar: u32) -> windows::core::Result<()> { Ok(()) }
+        fn ResetTimer(&self) -> windows::core::Result<()> { Ok(()) }
+        fn PauseTimer(&self) -> windows::core::Result<()> { Ok(()) }
+        fn ResumeTimer(&self) -> windows::core::Result<()> { Ok(()) }
+    }
+
+    let rejected_permanent = Arc::new(AtomicBool::new(false));
+    let wide: Vec<u16> = shell_path.as_os_str().to_string_lossy().encode_utf16().chain(std::iter::once(0)).collect();
+    unsafe {
+        let file_op: IFileOperation = CoCreateInstance(&FileOperation, None, CLSCTX_ALL)
+            .map_err(|error| format!("Mise à la corbeille impossible : {error}"))?;
+        let flags = FOF_ALLOWUNDO | FOFX_RECYCLEONDELETE | FOF_NO_UI | FOFX_EARLYFAILURE;
+        file_op.SetOperationFlags(flags)
+            .map_err(|error| format!("Mise à la corbeille impossible : {error}"))?;
+        let sink: IFileOperationProgressSink = RecycleOnlySink {
+            rejected_permanent: Arc::clone(&rejected_permanent),
+        }.into();
+        let cookie = file_op.Advise(&sink)
+            .map_err(|error| format!("Mise à la corbeille impossible : {error}"))?;
+        let item: Result<IShellItem, String> = SHCreateItemFromParsingName(PCWSTR(wide.as_ptr()), None)
+            .map_err(|error| format!("Mise à la corbeille impossible : {error}"));
+        let op_res = match item {
+            Ok(item) => file_op.DeleteItem(&item, None)
+                .map_err(|error| format!("Mise à la corbeille impossible : {error}"))
+                .and_then(|()| {
+                    let perform = file_op.PerformOperations();
+                    let aborted = file_op.GetAnyOperationsAborted().map(|b| b.as_bool()).unwrap_or(false);
+                    if rejected_permanent.load(Ordering::SeqCst) {
+                        return Err(format!(
+                            "La corbeille n'est pas disponible pour « {} » (corbeille désactivée ou fichier trop volumineux) : suppression annulée",
+                            shell_path.display()
+                        ));
+                    }
+                    perform.map_err(|error| format!("Mise à la corbeille impossible : {error}"))?;
+                    if aborted {
+                        return Err("Mise à la corbeille annulée".to_string());
+                    }
+                    Ok(())
+                }),
+            Err(error) => Err(error),
+        };
+        let _ = file_op.Unadvise(cookie);
+        op_res
+    }
+}
+
+/// Moves `path` to the Windows Recycle Bin and aborts before deletion if Windows would permanently delete it.
+#[cfg(windows)]
+fn trash_strict(path: &Path) -> Result<(), String> {
+    use windows::Win32::Foundation::{RPC_E_CHANGED_MODE, S_FALSE, S_OK};
+    use windows::Win32::System::Com::{CoInitializeEx, CoUninitialize, COINIT_APARTMENTTHREADED, COINIT_DISABLE_OLE1DDE};
+
+    struct ComGuard;
+    impl Drop for ComGuard {
+        fn drop(&mut self) {
+            unsafe { CoUninitialize() };
+        }
+    }
+
+    let shell_path = windows_shell_path(path)?;
+    let hr = unsafe { CoInitializeEx(None, COINIT_APARTMENTTHREADED | COINIT_DISABLE_OLE1DDE) };
+    if hr == S_OK || hr == S_FALSE {
+        let _guard = ComGuard;
+        return trash_strict_on_sta(&shell_path);
+    }
+    if hr == RPC_E_CHANGED_MODE {
+        let path_owned = shell_path;
+        return std::thread::spawn(move || {
+            let hr = unsafe { CoInitializeEx(None, COINIT_APARTMENTTHREADED | COINIT_DISABLE_OLE1DDE) };
+            if hr != S_OK && hr != S_FALSE {
+                return Err(format!("Initialisation COM impossible pour la corbeille : {hr:?}"));
+            }
+            let _guard = ComGuard;
+            trash_strict_on_sta(&path_owned)
+        })
+        .join()
+        .map_err(|_| "Erreur interne lors de la mise à la corbeille".to_string())?;
+    }
+    Err(format!("Initialisation COM impossible pour la corbeille : {hr:?}"))
+}
+
+#[cfg(not(windows))]
+fn trash_strict(path: &Path) -> Result<(), String> {
+    trash::delete(path).map_err(|error| error.to_string())
+}
+
+/// Uses strict verified recycle when `has_trash` promised a Recycle Bin; falls back to `trash::delete` only when the UI already warned of permanent deletion.
+fn trash_or_delete_if_confirmed(path: &Path) -> Result<(), String> {
+    if has_trash(&path.to_string_lossy()) {
+        trash_strict(path)
+    } else {
+        trash::delete(path).map_err(|error| error.to_string())
+    }
+}
+
 // Nombre de ces chemins (fichiers ou dossiers) que la suppression n'enverra PAS à la corbeille mais effacera définitivement, d'après leur support (voir has_trash).
 // L'interface s'en sert pour afficher le bon message de confirmation. Ne touche pas au disque (sauf la question du type de lecteur à Windows).
 #[tauri::command(async)]
 fn count_permanent_deletions(paths: Vec<String>) -> usize {
-    paths.iter().filter(|path| !has_trash(path)).count()
+    #[cfg(windows)]
+    {
+        let mut cache: std::collections::HashMap<String, bool> = std::collections::HashMap::new();
+        let cwd = std::env::current_dir().ok();
+        return paths
+            .iter()
+            .filter(|path| {
+                let root = match windows_root(path) {
+                    WindowsRoot::Other => cwd
+                        .as_ref()
+                        .map(|dir| windows_root(&dir.join(path).to_string_lossy()))
+                        .unwrap_or(WindowsRoot::Other),
+                    other => other,
+                };
+                match root {
+                    WindowsRoot::Unc | WindowsRoot::Other => true,
+                    WindowsRoot::Drive(drive) => {
+                        let key = drive.to_ascii_uppercase();
+                        let has = *cache
+                            .entry(key)
+                            .or_insert_with(|| has_trash_for_root(&WindowsRoot::Drive(drive)));
+                        !has
+                    }
+                }
+            })
+            .count();
+    }
+    #[cfg(not(windows))]
+    {
+        paths.iter().filter(|path| !has_trash(path)).count()
+    }
 }
 
 // Vrai si le dossier ne contient aucun fichier (sous-dossiers vides acceptés). Fichiers cachés compris, sauf les fichiers que l'OS recrée seul
@@ -2124,7 +2335,7 @@ fn delete_folder(state: State<'_, AppState>, path: String) -> Result<Vec<String>
 
     // Chemin natif (séparateurs de l'OS) : le dossier suivi peut avoir été enregistré avec des « / », que la corbeille de Windows n'accepte pas toujours.
     let native: PathBuf = folder.components().collect();
-    trash::delete(&native).map_err(|error| format!("Mise à la corbeille impossible : {error}"))?;
+    trash_or_delete_if_confirmed(&native).map_err(|error| format!("Mise à la corbeille impossible : {error}"))?;
 
     // Le dossier n'existe plus : le nettoyage du catalogue ne doit plus faire échouer l'opération (la synchronisation rattraperait un reste éventuel).
     for cache_file in cache_files { let _ = fs::remove_file(cache_file); }
@@ -2303,9 +2514,9 @@ pub(crate) fn copy_sidecar_with(
     let (from, to) = if src_appended.is_file() {
         (src_appended, dst_appended)
     } else if src_compat.is_file() {
-        // Never overwrite a compatible `photo.xmp` shared with another sibling at the destination;
+        // Never overwrite or collide with a compatible `photo.xmp` shared with another sibling at the destination;
         // redirect to `photo.ext.xmp` so the sibling keeps its own sidecar (invariants.md §2.2).
-        let dest = if overwrite && dst_compat.exists() && has_same_stem_sibling(target).unwrap_or(true) {
+        let dest = if dst_compat.exists() && has_same_stem_sibling(target).unwrap_or(true) {
             dst_appended
         } else {
             dst_compat
@@ -2508,12 +2719,29 @@ pub(crate) fn copy_atomically_to_reserved(source: &Path, reserved_target: &Path)
     copy_atomically_to_reserved_verified(source, reserved_target, |_, _| Ok(()))
 }
 
-/// Replaces an existing `target` with `temp` in three reversible steps so the original is never lost on failure
-/// and the trashed copy keeps its real file name.
-pub(crate) fn replace_file_via_backup(
+/// Retries a rollback rename briefly in case an antivirus or indexer transiently holds a handle.
+fn rename_with_retry(from: &Path, to: &Path) -> std::io::Result<()> {
+    let mut last_err = None;
+    for attempt in 0..3 {
+        match fs::rename(from, to) {
+            Ok(()) => return Ok(()),
+            Err(error) => {
+                last_err = Some(error);
+                if attempt < 2 {
+                    std::thread::sleep(std::time::Duration::from_millis(50));
+                }
+            }
+        }
+    }
+    Err(last_err.unwrap())
+}
+
+pub(crate) fn replace_file_via_backup_with_rename(
     temp: &Path,
     target: &Path,
     send_to_trash: impl FnOnce(&Path) -> Result<(), String>,
+    mut forward_rename: impl FnMut(&Path, &Path) -> std::io::Result<()>,
+    mut rollback_rename: impl FnMut(&Path, &Path) -> std::io::Result<()>,
 ) -> Result<(), String> {
     let parent = target.parent().ok_or_else(|| {
         remove_copied_target(temp);
@@ -2533,27 +2761,64 @@ pub(crate) fn replace_file_via_backup(
         return Err(format!("Création du dossier de sauvegarde impossible : {error}"));
     }
     let backup_file = backup_dir.join(file_name);
-    if let Err(error) = fs::rename(target, &backup_file) {
+    if let Err(error) = forward_rename(target, &backup_file) {
         let _ = fs::remove_dir(&backup_dir);
         remove_copied_target(temp);
         return Err(format!("« {} » n'a pas pu être préparé pour la corbeille, il n'est pas remplacé : {error}", target.display()));
     }
-    if let Err(error) = fs::rename(temp, target) {
-        let _ = fs::rename(&backup_file, target);
-        let _ = fs::remove_dir(&backup_dir);
-        remove_copied_target(temp);
-        return Err(format!("Écriture impossible : {error}"));
+    if let Err(error) = forward_rename(temp, target) {
+        return match rollback_rename(&backup_file, target) {
+            Ok(()) => {
+                let _ = fs::remove_dir(&backup_dir);
+                remove_copied_target(temp);
+                Err(format!("Écriture impossible : {error}"))
+            }
+            Err(restore_err) => {
+                remove_copied_target(temp);
+                Err(format!(
+                    "Écriture impossible ({error}) et restauration de l'original échouée ({restore_err}) : le fichier d'origine est conservé dans « {} »",
+                    backup_file.display()
+                ))
+            }
+        };
     }
     if let Err(error) = send_to_trash(&backup_file) {
         // Rollback: move the new file back to `temp` so we can remove it and restore the original.
-        let _ = fs::rename(target, temp);
-        let _ = fs::rename(&backup_file, target);
-        let _ = fs::remove_dir(&backup_dir);
-        remove_copied_target(temp);
-        return Err(format!("« {} » n'a pas pu être mis à la corbeille, il n'est pas remplacé : {error}", target.display()));
+        if let Err(move_back_err) = rollback_rename(target, temp) {
+            return Err(format!(
+                "« {} » n'a pas pu être mis à la corbeille ({error}) et la restauration a échoué ({move_back_err}) : le fichier d'origine est conservé dans « {} »",
+                target.display(),
+                backup_file.display()
+            ));
+        }
+        return match rollback_rename(&backup_file, target) {
+            Ok(()) => {
+                let _ = fs::remove_dir(&backup_dir);
+                remove_copied_target(temp);
+                Err(format!("« {} » n'a pas pu être mis à la corbeille, il n'est pas remplacé : {error}", target.display()))
+            }
+            Err(restore_err) => {
+                remove_copied_target(temp);
+                Err(format!(
+                    "« {} » n'a pas pu être mis à la corbeille ({error}) et la restauration a échoué ({restore_err}) : le fichier d'origine est conservé dans « {} »",
+                    target.display(),
+                    backup_file.display()
+                ))
+            }
+        };
     }
     let _ = fs::remove_dir(&backup_dir);
     Ok(())
+}
+
+/// Replaces an existing `target` with `temp` in three reversible steps so the original is never lost on failure
+/// and the trashed copy keeps its real file name.
+pub(crate) fn replace_file_via_backup(
+    temp: &Path,
+    target: &Path,
+    send_to_trash: impl FnOnce(&Path) -> Result<(), String>,
+) -> Result<(), String> {
+    replace_file_via_backup_with_rename(temp, target, send_to_trash, |from, to| fs::rename(from, to), rename_with_retry)
 }
 
 pub(crate) fn replace_file_via_trash_with(
@@ -2572,9 +2837,7 @@ pub(crate) fn replace_file_via_trash_with(
 /// Replaces an existing `target` with `temp` by sending the previous file to the OS trash.
 /// Refuses replacement if no trash is available on the target volume.
 pub(crate) fn replace_file_via_trash(temp: &Path, target: &Path) -> Result<(), String> {
-    replace_file_via_trash_with(temp, target, has_trash(&target.to_string_lossy()), |backup| {
-        trash::delete(backup).map_err(|error| error.to_string())
-    })
+    replace_file_via_trash_with(temp, target, has_trash(&target.to_string_lossy()), trash_strict)
 }
 
 fn move_file_via_copy(source: &Path, target: &Path) -> std::io::Result<()> {
@@ -2626,6 +2889,8 @@ fn move_file(source: &Path, target: &Path) -> std::io::Result<()> {
 // XMP sidecar of a moved photo: `photo.jpg.xmp` is always moved with it. A compatible `photo.xmp` is moved when no sibling
 // in the source folder shares its stem (`source_has_sibling == Some(false)`), and copied otherwise (`Some(true)` or `None`)
 // so any other file of the pair keeps its metadata.
+// If `photo.xmp` at destination already belongs to a sibling, redirects to `photo.ext.xmp` (invariants.md §2.2).
+#[cfg_attr(not(test), allow(dead_code))]
 fn move_sidecar(source: &Path, target: &Path, source_has_sibling: Option<bool>) -> std::io::Result<()> {
     let [src_appended, src_compat] = exif::sidecar_candidates(source);
     let [dst_appended, dst_compat] = exif::sidecar_candidates(target);
@@ -2635,11 +2900,84 @@ fn move_sidecar(source: &Path, target: &Path, source_has_sibling: Option<bool>) 
     } else if !src_compat.is_file() {
         Ok(())
     } else if matches!(source_has_sibling, Some(false)) {
-        reserve_new_file(&dst_compat)?;
-        move_file(&src_compat, &dst_compat).inspect_err(|_| remove_copied_target(&dst_compat))
+        let dest = if dst_compat.exists() && has_same_stem_sibling(target).unwrap_or(true) {
+            dst_appended
+        } else {
+            dst_compat
+        };
+        reserve_new_file(&dest)?;
+        move_file(&src_compat, &dest).inspect_err(|_| remove_copied_target(&dest))
     } else {
         copy_sidecar(source, target, false)
     }
+}
+
+struct StagedSidecar {
+    dst: PathBuf,
+    remove_source: Option<PathBuf>,
+}
+
+/// Phase 1 of a photo move: copies the source sidecar atomically to its reserved destination
+/// before the photo itself moves, so a sidecar collision or I/O error never leaves the photo separated from its metadata.
+fn stage_sidecar_for_move(
+    source: &Path,
+    target: &Path,
+    source_has_sibling: Option<bool>,
+) -> std::io::Result<Option<StagedSidecar>> {
+    let [src_appended, src_compat] = exif::sidecar_candidates(source);
+    let [dst_appended, dst_compat] = exif::sidecar_candidates(target);
+    let (from, to, remove_source) = if src_appended.is_file() {
+        (src_appended.clone(), dst_appended, Some(src_appended))
+    } else if src_compat.is_file() {
+        let dest = if dst_compat.exists() && has_same_stem_sibling(target).unwrap_or(true) {
+            dst_appended
+        } else {
+            dst_compat
+        };
+        let remove = matches!(source_has_sibling, Some(false)).then(|| src_compat.clone());
+        (src_compat, dest, remove)
+    } else {
+        return Ok(None);
+    };
+    if same_existing_file(&from, &to) {
+        return Ok(None);
+    }
+    reserve_new_file(&to)?;
+    copy_atomically_to_reserved(&from, &to)?;
+    Ok(Some(StagedSidecar { dst: to, remove_source }))
+}
+
+/// Moves a photo together with its sidecar in two phases: stage sidecar -> move photo -> remove source sidecar (if unshared).
+/// Returns `Ok(Some(warning))` only if the photo and its destination sidecar are both in place and only deleting the old unshared sidecar failed.
+fn move_photo_with_sidecar_using(
+    source: &Path,
+    target: &Path,
+    source_has_sibling: Option<bool>,
+    move_photo: impl FnOnce(&Path, &Path) -> std::io::Result<()>,
+) -> Result<Option<String>, String> {
+    let staged = match stage_sidecar_for_move(source, target, source_has_sibling) {
+        Ok(staged) => staged,
+        Err(error) => {
+            remove_copied_target(target);
+            return Err(format!("Sidecar XMP non déplacé : {error}"));
+        }
+    };
+    if let Err(error) = move_photo(source, target) {
+        if let Some(staged) = &staged {
+            remove_copied_target(&staged.dst);
+        }
+        remove_copied_target(target);
+        return Err(error.to_string());
+    }
+    if let Some(src_sidecar) = staged.and_then(|s| s.remove_source) {
+        if let Err(error) = fs::remove_file(&src_sidecar) {
+            return Ok(Some(format!(
+                "Ancien sidecar XMP non supprimé (« {} ») : {error}",
+                src_sidecar.display()
+            )));
+        }
+    }
+    Ok(None)
 }
 
 // Suivi d'une tâche de fichiers (déplacement, copie) lancée depuis la file de l'interface : publie l'avancement dans « scan-progress » (pondéré par la taille
@@ -2753,14 +3091,16 @@ fn move_photos(app: tauri::AppHandle, state: State<'_, AppState>, paths: Vec<Str
             let cache_file = thumbnail_cache_file(&thumbnails_dir, &path).ok();
             let raw_preview_file = raw_preview_cache_file(&raw_previews_dir, &path).ok();
 
-            if let Err(error) = move_file(source, &target) {
-                failed.push(FileFailure { path: path.clone(), error: error.to_string() });
-                break 'file;
-            }
+            let sidecar_warning = match move_photo_with_sidecar_using(source, &target, source_has_sibling, move_file) {
+                Ok(warning) => warning,
+                Err(error) => {
+                    failed.push(FileFailure { path: path.clone(), error });
+                    break 'file;
+                }
+            };
             renamed_for_sidecar.extend(sidecar_rename);
-            if let Err(error) = move_sidecar(source, &target, source_has_sibling) {
-                // La photo est déplacée mais pas son sidecar XMP : ses métadonnées sont restées à l'ancien emplacement, l'échec est signalé.
-                failed.push(FileFailure { path: path.clone(), error: format!("Sidecar XMP non déplacé : {error}") });
+            if let Some(error) = sidecar_warning {
+                failed.push(FileFailure { path: path.clone(), error });
             }
             let new_path = target.to_string_lossy().into_owned();
             // Les noms du cache dépendent du chemin : les miniatures existantes sont renommées vers le nouveau nom au lieu d'être régénérées.

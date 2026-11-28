@@ -35,12 +35,21 @@ fn crash_temp_entry_matches_known_patterns() {
     for name in [
         "photo.jpg_exiftool_tmp",
         ".photoboggan-rename-123",
+        ".photoboggan-backup-123-1",
+        ".photoboggan-resize-123-1.tmp",
         ".photoboggan-resize-backup-456",
         ".photoboggan-tmp-789",
+        "photo.cr2.photoboggan-123-1.tmp.xmp",
     ] {
         assert!(is_crash_temp_entry(Path::new(name)), "{name}");
     }
-    for name in ["photo.jpg", "photo.jpg.xmp", ".photoboggan-other", "exiftool_tmp.jpg"] {
+    for name in [
+        "photo.jpg",
+        "photo.jpg.xmp",
+        ".photoboggan-other",
+        "exiftool_tmp.jpg",
+        "photo.tmp.xmp",
+    ] {
         assert!(!is_crash_temp_entry(Path::new(name)), "{name}");
     }
 }
@@ -187,6 +196,31 @@ fn sync_detects_added_modified_removed_and_never_trusts_a_missing_disk() {
     let after = sync_library(&pool, &[]).unwrap();
     assert!(after.added.is_empty() && after.updated.is_empty() && after.removed.is_empty(), "the sync must not read a photo whose sidecar changed: {:?}", after.updated);
     assert_eq!(dates(&conn), (image_date, recorded), "the sync leaves both dates as they were");
+
+    // Crash-leftover temporary items (.photoboggan-backup-*, .photoboggan-resize-*.tmp, *.photoboggan-*-*.tmp.xmp) are reported
+    // without descending into backup directories or indexing hidden originals.
+    let backup_dir = root.join(".photoboggan-backup-999-1");
+    fs::create_dir(&backup_dir).unwrap();
+    fs::write(backup_dir.join("orig.jpg"), jpeg_bytes(16, 16)).unwrap();
+    let resize_tmp = root.join(".photoboggan-resize-999-1.tmp");
+    fs::write(&resize_tmp, b"tmp").unwrap();
+    let sidecar_tmp = root.join("a.cr2.photoboggan-999-1.tmp.xmp");
+    fs::write(&sidecar_tmp, b"<x/>").unwrap();
+    let leftovers = sync_library(&pool, &[]).unwrap();
+    assert!(leftovers.added.is_empty(), "backup folder photo must not be indexed: {:?}", leftovers.added);
+    assert_eq!(leftovers.temp_leftovers_total, 3);
+    let reported = sorted(leftovers.temp_leftovers);
+    assert_eq!(
+        reported,
+        sorted(vec![
+            backup_dir.to_string_lossy().into_owned(),
+            resize_tmp.to_string_lossy().into_owned(),
+            sidecar_tmp.to_string_lossy().into_owned(),
+        ])
+    );
+    fs::remove_dir_all(&backup_dir).unwrap();
+    fs::remove_file(&resize_tmp).unwrap();
+    fs::remove_file(&sidecar_tmp).unwrap();
 }
 
 /// Sets the modification date of `path` one hour back.

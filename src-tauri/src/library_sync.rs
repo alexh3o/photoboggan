@@ -41,8 +41,10 @@ pub(crate) fn is_crash_temp_entry(path: &Path) -> bool {
     let Some(name) = path.file_name().and_then(|value| value.to_str()) else { return false; };
     name.ends_with("_exiftool_tmp")
         || name.starts_with(".photoboggan-rename-")
-        || name.starts_with(".photoboggan-resize-backup-")
+        || name.starts_with(".photoboggan-backup-")
+        || name.starts_with(".photoboggan-resize-")
         || name.starts_with(".photoboggan-tmp-")
+        || (name.contains(".photoboggan-") && name.ends_with(".tmp.xmp"))
 }
 
 /// Chemins concernés par la synchronisation ; l'interface recharge ensuite la liste des photos.

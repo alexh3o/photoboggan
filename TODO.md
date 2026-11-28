@@ -26,7 +26,7 @@
 - [x] *feat*: `help` setup wizard
 - [x] *feat*: `files` **sd card** import
 - [ ] *feat*: `files` unrecognized filetypes (ex: unsupported raw) should be opened by OS
-- [ ] *style* `update`: Update available donwload button not as high as other buttons in the update info modal
+- [x] *style* `update`: Update available donwload button not as high as other buttons in the update info modal
 
 ## 💡 Ideas / Longer term / On hold / Secondary
 
@@ -39,7 +39,7 @@
 - [ ] *feat*: `metadata`allow writing to xmp sidecar
 - [ ] *chore*: `semantic` add content search score setting filter to recipes
 - [ ] *fix* `semantic`: some field are mentionned as non content analyzed but skipped during analyze (videos without thumbs)
-- [ ] *feat*: `files` show additionnal filetypes (whitelist) that are opened with default OS app
+- [ ] *feat*: `files` show additional filetypes (whitelist) that are opened with default OS app
 
 ## ⚖️ Undecided
 

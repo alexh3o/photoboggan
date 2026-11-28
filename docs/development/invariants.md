@@ -1,4 +1,4 @@
-<!-- verified: 5daf187 | sources: AGENTS.md, src-tauri/src/exif.rs, src-tauri/src/exiftool.rs, src-tauri/src/db.rs, src-tauri/src/thumbnails.rs, src-tauri/src/library_sync.rs, src-tauri/src/main.rs, src/main.js, src/task-queue.js -->
+<!-- verified: 5f5908c | sources: AGENTS.md, src-tauri/src/exif.rs, src-tauri/src/exiftool.rs, src-tauri/src/db.rs, src-tauri/src/thumbnails.rs, src-tauri/src/library_sync.rs, src-tauri/src/main.rs, src/main.js, src/task-queue.js -->
 
 # Business rules and invariants
 
@@ -27,7 +27,7 @@ Cross-cutting rules only: module-specific rules live in the "Invariants" section
 
 **1.6 No sidecar for a file that is gone.** `exiftool::write_to` returns `image_gone` if the image disappeared meanwhile (an orphan sidecar would remain).
 
-**1.7 Deletion goes through the OS trash** (`trash::delete` in `delete_photos`, the sidecar follows its file). On Windows, removable, network, optical and RAM drives and UNC paths have no trash (`has_trash`): there the deletion is permanent, and `count_permanent_deletions` lets the UI say so in the confirmation before anything happens. On other systems `has_trash` always answers true. `delete_folder` in `main.rs` and `deleteFolderToTrash` in `main.js` are refused while any privacy set is active (`privacy::is_active()` / `hasActivePrivacy()`) to avoid deleting unseen hidden photos.
+**1.7 Deletion goes through the OS trash** (`trash_or_delete_if_confirmed` in `delete_photos` / `delete_folder`, the sidecar follows its file; `trash_strict` in `replace_file_via_trash`). On Windows, `has_trash` checks `GetDriveTypeW` (`DRIVE_FIXED` only) and `SHQueryRecycleBinW`; removable, network, optical and RAM drives, unknown roots, and UNC paths have no trash: there the deletion is permanent, and `count_permanent_deletions` lets the UI say so in the confirmation before anything happens. When `has_trash` promised a Recycle Bin (and for all replacements), `trash_strict` uses `IFileOperation` with `IFileOperationProgressSink::PreDeleteItem` (`TSF_DELETE_RECYCLE_IF_POSSIBLE`) to abort before deletion if Windows would permanently delete the file (e.g. disabled Recycle Bin or quota exceeded). On other systems `has_trash` always answers true. `delete_folder` in `main.rs` and `deleteFolderToTrash` in `main.js` are refused while any privacy set is active (`privacy::is_active()` / `hasActivePrivacy()`) to avoid deleting unseen hidden photos.
 
 ## 2. Metadata interoperability
 
@@ -66,7 +66,7 @@ Cross-cutting rules only: module-specific rules live in the "Invariants" section
 ## 5. Library scan and sync
 
 - A scan is never reported successful when photos were not stored (`run_scan` returns an error if a batch failed). A file unreadable or changing during the read is skipped, never stored with empty metadata (`library_sync::read_photo`); it is retried by the next sync.
-- The incremental sync (`sync_library`) compares size + modification time only; it runs at startup and when the window regains focus, never while a foreground task runs (`syncLibraryWithDisk`, main.js). Its global flag (`library_sync::RUNNING`) means only one test may exercise it. During the same `WalkDir` pass it also collects crash-leftover temporary items (`_exiftool_tmp`, `.photoboggan-rename-*`, `.photoboggan-resize-backup-*`, `.photoboggan-tmp-*`) without modifying them.
+- The incremental sync (`sync_library`) compares size + modification time only; it runs at startup and when the window regains focus, never while a foreground task runs (`syncLibraryWithDisk`, main.js). Its global flag (`library_sync::RUNNING`) means only one test may exercise it. During the same `WalkDir` pass it also collects crash-leftover temporary items (`_exiftool_tmp`, `.photoboggan-rename-*`, `.photoboggan-backup-*`, `.photoboggan-resize-*`, `.photoboggan-tmp-*`, `*.photoboggan-*.tmp.xmp`) without modifying them or descending into backup directories.
 - `photos.modified` must remain strictly the image file's own mtime so sidecar writes never trigger unnecessary re-reads; sorting by modification date uses `photos.effective_modified` (later of the image's and its active sidecar's mtime, with `0` falling back to `modified`).
 - Photos missing on disk are removed lazily, when displaying them fails (`checkPhotoMissing` → `remove_missing_photos`), and only if their tracked folder is reachable.
 
