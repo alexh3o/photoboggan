@@ -241,10 +241,3 @@ pub fn is_private_folder(path: &str) -> bool {
         }
     })
 }
-
-/// Mots-clés masqués par l'ensemble actif (clés en minuscules) : l'interface les retire des listes de filtres de mots-clés,
-/// mais pas des panneaux de saisie.
-#[tauri::command]
-pub fn get_privacy_hidden_keywords() -> Vec<String> {
-    read_active().map(|set| keyword_keys(&set)).unwrap_or_default()
-}

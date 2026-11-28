@@ -3515,7 +3515,6 @@ fn main() {
             geolocation::restore_geolocation,
             place_search::search_places,
             privacy::set_privacy_sets,
-            privacy::get_privacy_hidden_keywords,
             update_check::check_for_update,
             update_check::download_update,
             update_check::install_update,
