@@ -19,9 +19,9 @@ Every `#[tauri::command]` of the backend, with its frontend callers. "Runs on": 
 | `replace_album_photos` | `albums.rs` | `album_id: i64, photo_ids: Vec<i64>` | `usize` | async pool | albums-panel.js |
 | `preview_rename_batch` | `batch_rename.rs` | `items: Vec<RenameItem>` | `Vec<PreviewStatus>` | async pool | batch-rename.js |
 | `rename_photos` | `batch_rename.rs` | `items: Vec<RenameItem>, task_id: Option<String>` | `RenameBatchResult` | async pool | batch-rename.js ×2, import-view.js |
-| `list_rename_presets` | `batch_rename.rs` | — | `Vec<RenamePreset>` | main thread | batch-rename.js, import-view.js ×2 |
-| `save_rename_preset` | `batch_rename.rs` | `name: String, steps: String` | `Vec<RenamePreset>` | main thread | batch-rename.js |
-| `delete_rename_preset` | `batch_rename.rs` | `id: i64` | `Vec<RenamePreset>` | main thread | batch-rename.js |
+| `list_rename_presets` | `batch_rename.rs` | — | `Vec<RenamePreset>` | async pool | batch-rename.js, import-view.js ×2 |
+| `save_rename_preset` | `batch_rename.rs` | `name: String, steps: String` | `Vec<RenamePreset>` | async pool | batch-rename.js |
+| `delete_rename_preset` | `batch_rename.rs` | `id: i64` | `Vec<RenamePreset>` | async pool | batch-rename.js |
 | `set_metadata_writer` | `exiftool.rs` | `custom_path: Option<String>` | `()` | main thread | metadata-settings.js |
 | `get_exiftool_status` | `exiftool.rs` | — | `ExifToolStatus` | async pool | metadata-settings.js |
 | `exiftool_prewarm` | `exiftool.rs` | — | `()` | main thread | description-panel.js, keywords-panel.js |
@@ -119,9 +119,9 @@ Every `#[tauri::command]` of the backend, with its frontend callers. "Runs on": 
 | `purge_orphan_thumbnails` | `main.rs` | — | `usize` | async pool | main.js |
 | `set_thumbnail_cache_size` | `main.rs` | `size: u32` | `()` | async pool | main.js |
 | `set_thumbnail_quality` | `main.rs` | `quality: String` | `()` | async pool | main.js |
-| `get_folders` | `main.rs` | — | `Vec<TrackedFolder>` | main thread | main.js |
+| `get_folders` | `main.rs` | — | `Vec<TrackedFolder>` | async pool | main.js |
 | `add_folder` | `main.rs` | `path: String` | `Vec<TrackedFolder>` | async pool | main.js |
-| `remove_folder` | `main.rs` | `id: i64, path: String` | `Vec<TrackedFolder>` | main thread | main.js |
+| `remove_folder` | `main.rs` | `id: i64, path: String` | `Vec<TrackedFolder>` | async pool | main.js |
 | `cancel_scan` | `main.rs` | `task_id: String` | `()` | main thread | import-view.js ×2, task-queue.js ×2 |
 | `scan_folder` | `main.rs` | `path: String, task_id: String, resume_since: Option<i64>` | `()` | async pool | main.js |
 | `rescan_all_folders` | `main.rs` | `task_id: String, resume_since: Option<i64>` | `()` | async pool | task-queue.js |
@@ -134,8 +134,8 @@ Every `#[tauri::command]` of the backend, with its frontend callers. "Runs on": 
 | `open_folder_in_file_manager` | `main.rs` | `path: String` | `()` | async pool | photo-actions.js |
 | `create_subfolder` | `main.rs` | `parent: String, name: String` | `()` | async pool | import-view.js, photo-actions.js |
 | `list_disk_folders` | `main.rs` | — | `Vec<String>` | async pool | folder-tree.js |
-| `get_photos_by_paths` | `main.rs` | `paths: Vec<String>` | `Vec<Photo>` | main thread | main.js ×2 |
-| `get_photos_by_ids` | `main.rs` | `ids: Vec<i64>` | `Vec<Photo>` | main thread | semantic-keywords.js, semantic-results.js |
+| `get_photos_by_paths` | `main.rs` | `paths: Vec<String>` | `Vec<Photo>` | async pool | main.js ×2 |
+| `get_photos_by_ids` | `main.rs` | `ids: Vec<i64>` | `Vec<Photo>` | async pool | semantic-keywords.js, semantic-results.js |
 | `get_photos_paginated` | `main.rs` | `offset: i32, limit: i32, folder_filter: Option<String>, recursive: bool, sort_key: Option<String>, sort_order: Option<String>, prefilter: Option<db::PhotoPrefilter>` | `Vec<Photo>` | async pool | find-raw-mode.js, main.js ×2 |
 | `count_photos` | `main.rs` | `folder_filter: Option<String>, recursive: bool, prefilter: Option<db::PhotoPrefilter>` | `Option<i64>` | async pool | main.js |
 | `get_folder_counts` | `main.rs` | — | `std::collections::HashMap<String, i64>` | async pool | folder-tree.js |

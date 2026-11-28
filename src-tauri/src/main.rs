@@ -706,7 +706,7 @@ fn set_thumbnail_quality(app: tauri::AppHandle, quality: String) -> Result<(), S
 }
 
 
-#[tauri::command]
+#[tauri::command(async)]
 fn get_folders(state: State<'_, AppState>) -> Vec<TrackedFolder> {
     let pool = state.pool();
     db::get_folders(&pool)
@@ -722,7 +722,7 @@ async fn add_folder(state: State<'_, AppState>, path: String) -> Result<Vec<Trac
     Ok(folders)
 }
 
-#[tauri::command]
+#[tauri::command(async)]
 fn remove_folder(state: State<'_, AppState>, id: i64, path: String) -> Result<Vec<TrackedFolder>, String> {
     let pool = state.pool();
     db::remove_folder(&pool, id, &path)?;
@@ -1198,7 +1198,7 @@ fn insert_batch(conn: &rusqlite::Connection, photos: &[Photo]) -> rusqlite::Resu
 }
 
 // Catalog records of a list of paths (results of the duplicate search); unknown paths are left out.
-#[tauri::command]
+#[tauri::command(async)]
 fn get_photos_by_paths(state: State<'_, AppState>, paths: Vec<String>) -> Vec<Photo> {
     db::get_photos_by_paths(&state.pool(), &paths).unwrap_or_else(|error| {
         app_log::log_error("Photos by path unavailable", error);
@@ -1207,7 +1207,7 @@ fn get_photos_by_paths(state: State<'_, AppState>, paths: Vec<String>) -> Vec<Ph
 }
 
 // Catalog records of a list of photo ids (results of the content search); unknown ids are left out.
-#[tauri::command]
+#[tauri::command(async)]
 fn get_photos_by_ids(state: State<'_, AppState>, ids: Vec<i64>) -> Vec<Photo> {
     db::get_photos_by_ids(&state.pool(), &ids).unwrap_or_else(|error| {
         app_log::log_error("Photos by id unavailable", error);

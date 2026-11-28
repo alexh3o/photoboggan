@@ -26,7 +26,7 @@
 - [x] *feat*: `help` setup wizard
 - [x] *feat*: `files` **sd card** import
 - [ ] *feat*: `files` unrecognized filetypes (ex: unsupported raw) should be opened by OS
-- [x] *style* `update`: Update available donwload button not as high as other buttons in the update info modal
+- [x] *style* `update`: Update available download button not as high as other buttons in the update info modal
 
 ## 💡 Ideas / Longer term / On hold / Secondary
 

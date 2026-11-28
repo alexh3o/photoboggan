@@ -843,21 +843,21 @@ fn delete_preset(conn: &rusqlite::Connection, id: i64) -> Result<Vec<RenamePrese
     list_presets(conn)
 }
 
-#[tauri::command]
+#[tauri::command(async)]
 pub fn list_rename_presets(state: State<'_, AppState>) -> Result<Vec<RenamePreset>, String> {
     let pool = state.pool();
     let conn = pool.get().map_err(|error| error.to_string())?;
     list_presets(&conn)
 }
 
-#[tauri::command]
+#[tauri::command(async)]
 pub fn save_rename_preset(state: State<'_, AppState>, name: String, steps: String) -> Result<Vec<RenamePreset>, String> {
     let pool = state.pool();
     let conn = pool.get().map_err(|error| error.to_string())?;
     save_preset(&conn, &name, &steps)
 }
 
-#[tauri::command]
+#[tauri::command(async)]
 pub fn delete_rename_preset(state: State<'_, AppState>, id: i64) -> Result<Vec<RenamePreset>, String> {
     let pool = state.pool();
     let conn = pool.get().map_err(|error| error.to_string())?;

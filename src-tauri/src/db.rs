@@ -239,29 +239,42 @@ pub fn add_folder(pool: &DbPool, path: &str) -> Result<i64, String> {
     Ok(conn.last_insert_rowid())
 }
 
-/// Retire un dossier suivi et les photos qu'il contenait, en une seule transaction. Une photo qui se trouve aussi dans un autre dossier suivi
-/// (dossiers imbriqués) reste au catalogue ; les dossiers voisins au nom proche (`D:\Photo2` pour `D:\Photo`) ne sont pas touchés.
+/// Removes a tracked folder and the photos it contained in a single transaction. A photo still covered by another tracked folder
+/// (nested folders) stays in the catalog; similarly named sibling folders (`D:\Photo2` for `D:\Photo`) are untouched.
 pub fn remove_folder(pool: &DbPool, id: i64, folder_path: &str) -> Result<(), String> {
     let conn = pool.get().map_err(|e| e.to_string())?;
     let tx = conn.unchecked_transaction().map_err(|e| e.to_string())?;
     tx.execute("DELETE FROM folders WHERE id = ?", params![id]).map_err(|e| e.to_string())?;
-    let remaining: Vec<String> = {
+    // Pre-normalize folder prefixes once outside the photo scan, matching `crate::is_inside_folder` Unicode case-insensitive semantics.
+    let folder_prefix = |value: &str| format!("{}/", value.replace('\\', "/").trim_end_matches('/').to_lowercase());
+    let removed_prefix = folder_prefix(folder_path);
+    let remaining_prefixes: Vec<String> = {
         let mut stmt = tx.prepare("SELECT path FROM folders").map_err(|e| e.to_string())?;
         let rows = stmt.query_map([], |row| row.get::<_, String>(0)).map_err(|e| e.to_string())?;
-        rows.collect::<rusqlite::Result<_>>().map_err(|e| e.to_string())?
+        rows.map(|res| res.map(|root| folder_prefix(&root)))
+            .collect::<rusqlite::Result<_>>()
+            .map_err(|e| e.to_string())?
     };
+    // Stream matching photo IDs directly without materializing an intermediate `Vec<(i64, String)>`.
     let doomed: Vec<i64> = {
         let mut stmt = tx.prepare("SELECT id, path FROM photos WHERE path IS NOT NULL").map_err(|e| e.to_string())?;
         let rows = stmt.query_map([], |row| Ok((row.get::<_, i64>(0)?, row.get::<_, String>(1)?))).map_err(|e| e.to_string())?;
-        let photos: Vec<(i64, String)> = rows.collect::<rusqlite::Result<_>>().map_err(|e| e.to_string())?;
-        photos
-            .into_iter()
-            .filter(|(_, path)| crate::is_inside_folder(folder_path, path) && !remaining.iter().any(|root| crate::is_inside_folder(root, path)))
-            .map(|(id, _)| id)
-            .collect()
+        let mut doomed = Vec::new();
+        for row in rows {
+            let (photo_id, path) = row.map_err(|e| e.to_string())?;
+            let norm_path = path.replace('\\', "/").trim_end_matches('/').to_lowercase();
+            if norm_path.starts_with(&removed_prefix)
+                && !remaining_prefixes.iter().any(|prefix| norm_path.starts_with(prefix))
+            {
+                doomed.push(photo_id);
+            }
+        }
+        doomed
     };
-    let ids_json = serde_json::to_string(&doomed).map_err(|e| e.to_string())?;
-    tx.execute("DELETE FROM photos WHERE id IN (SELECT value FROM json_each(?1))", params![ids_json]).map_err(|e| e.to_string())?;
+    if !doomed.is_empty() {
+        let ids_json = serde_json::to_string(&doomed).map_err(|e| e.to_string())?;
+        tx.execute("DELETE FROM photos WHERE id IN (SELECT value FROM json_each(?1))", params![ids_json]).map_err(|e| e.to_string())?;
+    }
     tx.commit().map_err(|e| e.to_string())
 }
 

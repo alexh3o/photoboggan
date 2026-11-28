@@ -63,13 +63,13 @@ Text files of the repository (vendored files, icons, lock files and `dev_tools/`
 | `css.md` | 685 |  |
 | `db-schema.md` | 340 |  |
 | `events.md` | 13 |  |
-| `files.md` | 354 |  |
+| `files.md` | 356 |  |
 | `ipc-commands.md` | 225 |  |
-| `module-deps.md` | 127 |  |
+| `module-deps.md` | 128 |  |
 | `sections.md` | 494 |  |
 | `symbols-js.md` | 1888 |  |
-| `symbols-rust.md` | 1703 |  |
-| `tests.md` | 580 |  |
+| `symbols-rust.md` | 1709 |  |
+| `tests.md` | 586 |  |
 
 ## docs/development/modules
 
@@ -251,7 +251,7 @@ Text files of the repository (vendored files, icons, lock files and `dev_tools/`
 | `albums.rs` | 404 | Albums virtuels : arborescence de dossiers, d'albums manuels et d'albums intelligents, qui n'existent que dans la base (table `album_nodes`). Modèle (choisi avec l'utilisateur) : - trois types de nœuds : `folder` (dossi… |
 | `app_log.rs` | 46 | Minimal persistent error log (`<data_dir>/logs/app.log`) for critical backend failures. Release Windows builds use `windows_subsystem = "windows"` (no stderr), so errors written here stay diagnosable. |
 | `batch_rename.rs` | 870 | Batch rename (F2 on several photos, see docs/development/modules/photo-operations.md). The interface (src/batch-rename.js) evaluates the recipe and sends, for each photo, the new name WITHOUT the extension: this module … |
-| `db.rs` | 792 |  |
+| `db.rs` | 805 |  |
 | `duplicates.rs` | 1121 | Duplicate detection, "identical images" part (command `find_duplicates`). Two images are identical when their *image data* is identical, whatever their metadata. For JPEG, PNG and WebP the hashed bytes are the ones that… |
 | `exif.rs` | 2396 |  |
 | `exiftool.rs` | 1384 | Metadata writing via `ExifTool` (<https://exiftool.org>). Executable, in order: user-chosen path in Settings, bundled version (`exiftool` folder in app resources, see scripts/fetch-exiftool.mjs), then `exiftool` from PA… |
@@ -294,7 +294,7 @@ Text files of the repository (vendored files, icons, lock files and `dev_tools/`
 | `albums.rs` | 205 | Tests des albums virtuels (albums.rs) : règles de parenté, unicité des noms, déplacement sans cycle, copie, suppression en cascade. |
 | `app_log.rs` | 27 | Unit tests for persistent error logging and log rotation (app_log.rs). |
 | `batch_rename.rs` | 358 | Tests of the batch rename: planning (collisions, sidecars, lengths), execution (swaps, catalogue update) and saved recipes. Files are made in a temporary folder, no real photo is used. |
-| `db.rs` | 506 | Tests du catalogue SQLite (db.rs) : mode WAL, mise à niveau idempotente, dossiers suivis, pagination. |
+| `db.rs` | 529 | Tests du catalogue SQLite (db.rs) : mode WAL, mise à niveau idempotente, dossiers suivis, pagination. |
 | `duplicates.rs` | 521 | Tests of the identical-image search: metadata-insensitive hashing, scopes, cache and cancellation. Synthetic files in a temporary folder only. |
 | `exif_rights.rs` | 110 | Tests de l'auteur et des droits (exif.rs) : écriture XMP et IPTC d'un JPEG par le chemin interne, relecture, structure `CreatorContactInfo` conservée, langues alternatives effacées, vérification après écriture. Fichiers… |
 | `exif.rs` | 422 | Regression tests for metadata reading, normalization, priorities, and XMP helpers (exif.rs). Synthetic files in a temporary folder; `ExifTool` writes are tested in tests/exiftool.rs. |

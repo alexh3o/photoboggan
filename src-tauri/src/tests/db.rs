@@ -314,6 +314,29 @@ fn removing_a_folder_keeps_photos_still_covered_and_neighbours() {
 }
 
 #[test]
+fn removing_a_folder_matches_case_and_separators_and_handles_empty_folder() {
+    let (_dir, pool) = temp_catalog();
+    let outer = add_folder(&pool, r"C:\Photo").unwrap();
+    add_folder(&pool, "c:/photo/Sub").unwrap();
+    add_folder(&pool, "C:/Photo2").unwrap();
+    let empty = add_folder(&pool, "C:/Empty").unwrap();
+    {
+        let conn = pool.get().unwrap();
+        for path in ["c:/photo/a.jpg", r"C:\PHOTO\sub\b.jpg", "C:/Photo2/c.jpg"] {
+            insert_photo(&conn, path);
+        }
+    }
+    remove_folder(&pool, outer, r"C:\Photo\").unwrap();
+    assert_eq!(names(get_photos(&pool, 0, 10, None, true).unwrap()), ["b.jpg", "c.jpg"]);
+    assert_eq!(get_folders(&pool).len(), 3);
+
+    // Removing a folder with no photos succeeds without touching the remaining catalogue.
+    remove_folder(&pool, empty, "C:/Empty").unwrap();
+    assert_eq!(names(get_photos(&pool, 0, 10, None, true).unwrap()), ["b.jpg", "c.jpg"]);
+    assert_eq!(get_folders(&pool).len(), 2);
+}
+
+#[test]
 fn adding_the_same_folder_twice_keeps_one_row() {
     let (_dir, pool) = temp_catalog();
     add_folder(&pool, "C:/Photo").unwrap();
